@@ -1,0 +1,416 @@
+{% extends "admin/base.html" %}
+
+{% block title %}TeamChat 智能数据大屏{% endblock %}
+
+{% block content %}
+<style>
+    /* Dashboard Specific Styles */
+    :root {
+        --bg-color: #0b1120;
+        --card-bg: rgba(16, 24, 39, 0.7);
+        --border-color: #1e3a8a;
+        --text-color: #e2e8f0;
+        --accent-color: #00f3ff;
+        --danger-color: #ff3333;
+    }
+
+    /* Fullscreen Mode Overrides */
+    :fullscreen .layui-header,
+    :fullscreen .layui-side,
+    :fullscreen .layui-footer {
+        display: none !important;
+    }
+    :fullscreen .layui-body {
+        left: 0 !important;
+        top: 0 !important;
+        bottom: 0 !important;
+        padding: 0 !important;
+        background-color: var(--bg-color);
+        overflow: hidden;
+        height: 100vh;
+        width: 100vw;
+    }
+
+    .dashboard-container {
+        height: 100%;
+        width: 100%;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        padding: 20px;
+        box-sizing: border-box;
+        overflow-y: auto;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-image: 
+            radial-gradient(circle at 50% 50%, rgba(30, 58, 138, 0.1) 0%, transparent 50%),
+            linear-gradient(rgba(11, 17, 32, 0.9), rgba(11, 17, 32, 0.9)),
+            url('https://cdn.pixabay.com/photo/2016/11/29/05/45/astronomy-1867616_1280.jpg'); /* Optional background texture */
+        background-size: cover;
+    }
+
+    .dashboard-header {
+        text-align: center;
+        margin-bottom: 20px;
+        position: relative;
+        border-bottom: 2px solid var(--border-color);
+        padding-bottom: 10px;
+    }
+
+    .dashboard-title {
+        font-size: 32px;
+        font-weight: bold;
+        color: var(--accent-color);
+        text-transform: uppercase;
+        letter-spacing: 4px;
+        text-shadow: 0 0 10px var(--accent-color);
+    }
+
+    .fullscreen-btn {
+        position: absolute;
+        right: 0;
+        top: 0;
+        background: transparent;
+        border: 1px solid var(--accent-color);
+        color: var(--accent-color);
+        padding: 5px 15px;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    .fullscreen-btn:hover {
+        background: var(--accent-color);
+        color: #000;
+        box-shadow: 0 0 15px var(--accent-color);
+    }
+
+    /* Grid Layout */
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: 25% 50% 25%;
+        gap: 20px;
+        height: calc(100% - 80px);
+    }
+
+    .dashboard-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        padding: 15px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        display: flex;
+        flex-direction: column;
+        position: relative;
+    }
+    
+    .dashboard-card::before {
+        content: '';
+        position: absolute;
+        top: -1px; left: -1px; width: 10px; height: 10px;
+        border-top: 2px solid var(--accent-color);
+        border-left: 2px solid var(--accent-color);
+    }
+    .dashboard-card::after {
+        content: '';
+        position: absolute;
+        bottom: -1px; right: -1px; width: 10px; height: 10px;
+        border-bottom: 2px solid var(--accent-color);
+        border-right: 2px solid var(--accent-color);
+    }
+
+    .card-title {
+        font-size: 16px;
+        color: var(--accent-color);
+        margin-bottom: 10px;
+        border-left: 3px solid var(--accent-color);
+        padding-left: 10px;
+    }
+
+    /* Specific Components */
+    .stat-box {
+        display: flex;
+        justify-content: space-around;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+    .stat-item h3 { font-size: 36px; margin: 0; color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.5); }
+    .stat-item p { margin: 0; font-size: 12px; color: #aaa; }
+
+    .ai-report-box {
+        background: rgba(0, 255, 255, 0.05);
+        border: 1px dashed var(--accent-color);
+        padding: 15px;
+        margin-bottom: 20px;
+        font-family: 'Courier New', Courier, monospace;
+        color: #aaddff;
+        height: 150px;
+        overflow-y: auto;
+    }
+
+    .warning-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        overflow-y: auto;
+        flex: 1;
+    }
+    .warning-item {
+        background: rgba(255, 0, 0, 0.1);
+        border-left: 3px solid var(--danger-color);
+        padding: 8px;
+        margin-bottom: 5px;
+        font-size: 12px;
+    }
+    .warning-time { color: #888; float: right; }
+    .warning-content { color: #ffcccc; display: block; margin-top: 4px; }
+
+    .active-room-list {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+    .active-room-list th, .active-room-list td {
+        padding: 8px;
+        text-align: left;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .active-room-list th { color: var(--accent-color); }
+
+    /* Chart Containers */
+    .chart-container {
+        flex: 1;
+        min-height: 200px;
+    }
+
+    /* Animations */
+    @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(0, 243, 255, 0.4); }
+        70% { box-shadow: 0 0 0 10px rgba(0, 243, 255, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(0, 243, 255, 0); }
+    }
+    .live-indicator {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        background-color: var(--accent-color);
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+        margin-right: 10px;
+    }
+</style>
+
+<div class="dashboard-container" id="dashboard">
+    <div class="dashboard-header">
+        <div class="dashboard-title">
+            <span class="live-indicator"></span>
+            TeamChat 智能监控中枢
+        </div>
+        <button class="fullscreen-btn" onclick="toggleFullScreen()">
+            <i class="layui-icon layui-icon-screen-full"></i> 全屏显示
+        </button>
+    </div>
+
+    <div class="dashboard-grid">
+        <!-- Left Column -->
+        <div class="col-left" style="display: flex; flex-direction: column; gap: 20px;">
+            <div class="dashboard-card" style="flex: 1;">
+                <div class="card-title">用户与房间分布</div>
+                <div id="roomChart" class="chart-container"></div>
+            </div>
+            <div class="dashboard-card" style="flex: 1;">
+                <div class="card-title">消息活跃度趋势 (24h)</div>
+                <div id="msgTrendChart" class="chart-container"></div>
+            </div>
+        </div>
+
+        <!-- Center Column -->
+        <div class="col-center" style="display: flex; flex-direction: column; gap: 20px;">
+            <div class="dashboard-card" style="height: auto;">
+                <div class="stat-box">
+                    <div class="stat-item">
+                        <h3 id="totalUsers">0</h3>
+                        <p>总用户数</p>
+                    </div>
+                    <div class="stat-item">
+                        <h3 id="totalRooms">0</h3>
+                        <p>房间总数</p>
+                    </div>
+                    <div class="stat-item">
+                        <h3 id="todayMsgs" style="color: var(--accent-color);">0</h3>
+                        <p>今日消息</p>
+                    </div>
+                    <div class="stat-item">
+                        <h3 id="activeUsers">0</h3>
+                        <p>活跃用户</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="dashboard-card" style="flex: 1;">
+                <div class="card-title">AI 智能态势感知报告</div>
+                <div class="ai-report-box" id="aiReport">
+                    正在连接 AI 分析引擎...
+                </div>
+                <!-- Placeholder for a map or cool visualization -->
+                <div style="flex: 1; display: flex; align-items: center; justify-content: center; opacity: 0.3;">
+                    <i class="layui-icon layui-icon-globe" style="font-size: 150px; color: var(--accent-color);"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="col-right" style="display: flex; flex-direction: column; gap: 20px;">
+            <div class="dashboard-card" style="flex: 1;">
+                <div class="card-title">实时预警监控</div>
+                <ul class="warning-list" id="warningList">
+                    <!-- Warnings go here -->
+                </ul>
+            </div>
+            <div class="dashboard-card" style="flex: 1;">
+                <div class="card-title">活跃房间排行</div>
+                <table class="active-room-list">
+                    <thead>
+                        <tr>
+                            <th>房间名</th>
+                            <th>消息数</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activeRoomsTable">
+                        <!-- Rows go here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script>
+    // Fullscreen Toggle
+    function toggleFullScreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+    }
+
+    // Charts Init
+    var roomChart = echarts.init(document.getElementById('roomChart'));
+    var msgTrendChart = echarts.init(document.getElementById('msgTrendChart'));
+
+    // Resize charts on window resize
+    window.addEventListener('resize', function() {
+        roomChart.resize();
+        msgTrendChart.resize();
+    });
+
+    // Data Fetching
+    function loadDashboardData() {
+        $.get('{{ url_for("backend.get_dashboard_data") }}', function(res) {
+            // Update Stats
+            $('#totalUsers').text(res.stats.total_users);
+            $('#totalRooms').text(res.stats.total_rooms);
+            $('#todayMsgs').text(res.stats.today_messages);
+            $('#activeUsers').text(res.stats.active_users);
+
+            // Update Charts
+            // 1. Room Distribution
+            roomChart.setOption({
+                tooltip: { trigger: 'item' },
+                series: [{
+                    type: 'pie',
+                    radius: ['40%', '70%'],
+                    avoidLabelOverlap: false,
+                    itemStyle: {
+                        borderRadius: 5,
+                        borderColor: '#0b1120',
+                        borderWidth: 2
+                    },
+                    label: { show: false, position: 'center' },
+                    emphasis: {
+                        label: { show: true, fontSize: 20, fontWeight: 'bold', color: '#fff' }
+                    },
+                    data: res.charts.room_distribution
+                }]
+            });
+
+            // 2. Message Trend
+            msgTrendChart.setOption({
+                tooltip: { trigger: 'axis' },
+                xAxis: {
+                    type: 'category',
+                    data: res.charts.message_trend.categories,
+                    axisLine: { lineStyle: { color: '#888' } }
+                },
+                yAxis: {
+                    type: 'value',
+                    splitLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } },
+                    axisLine: { lineStyle: { color: '#888' } }
+                },
+                series: [{
+                    data: res.charts.message_trend.data,
+                    type: 'line',
+                    smooth: true,
+                    areaStyle: { opacity: 0.3 },
+                    itemStyle: { color: '#00f3ff' }
+                }]
+            });
+
+            // Update Warnings
+            var warningHtml = '';
+            res.warnings.forEach(function(w) {
+                warningHtml += `
+                    <li class="warning-item">
+                        <span class="warning-time">${w.time}</span>
+                        <div><strong>${w.user}</strong> in ${w.room}</div>
+                        <span class="warning-content">${w.content}</span>
+                    </li>
+                `;
+            });
+            $('#warningList').html(warningHtml || '<li style="color:#666; text-align:center; padding:10px;">暂无预警</li>');
+
+            // Update Active Rooms
+            var roomsHtml = '';
+            res.active_rooms.forEach(function(r) {
+                roomsHtml += `<tr><td>${r.name}</td><td>${r.msg_count}</td></tr>`;
+            });
+            $('#activeRoomsTable').html(roomsHtml);
+        });
+    }
+
+    // AI Report Streaming
+    function loadAIReport() {
+        var source = new EventSource("{{ url_for('backend.dashboard_ai_report') }}");
+        var reportBox = $('#aiReport');
+        reportBox.html(''); // Clear previous
+        
+        source.onmessage = function(event) {
+            if (event.data === "[DONE]") {
+                source.close();
+                return;
+            }
+            var data = JSON.parse(event.data);
+            if (data.text) {
+                reportBox.append(data.text);
+                reportBox.scrollTop(reportBox[0].scrollHeight);
+            }
+        };
+        
+        source.onerror = function(event) {
+            source.close();
+        };
+    }
+
+    // Initial Load
+    $(document).ready(function() {
+        loadDashboardData();
+        // Refresh data every 10 seconds
+        setInterval(loadDashboardData, 10000);
+        
+        // Load AI Report once on start
+        setTimeout(loadAIReport, 1000);
+    });
+</script>
+{% endblock %}

@@ -236,7 +236,7 @@
         
         <div id="alertArea" class="alert-custom"></div>
 
-        <form id="authForm" method="POST" action="/">
+        <form id="authForm" method="POST" action="/login">
             <div class="input-group-custom">
                 <input type="text" class="form-control" id="nickname" name="nickname" placeholder="请输入用户名或用户编码" required>
                 <div class="icon-wrapper"><i class="fas fa-user"></i></div>
@@ -248,9 +248,8 @@
             </div>
 
             <div class="input-group-custom" id="serverGroup">
-                <select class="form-select form-select-custom" id="serverSelect" name="server">
-                    <option value="server1">华东服务器 (推荐)</option>
-                    <option value="server2">华北服务器 (备用)</option>
+                <select class="form-select form-select-custom" id="serverSelect" name="ws_server">
+                    <option value="">默认服务器</option>
                 </select>
                 <div class="icon-wrapper"><i class="fas fa-server"></i></div>
             </div>
@@ -274,6 +273,16 @@
 <script src="{{ url_for('static', filename='vendor/jquery/jquery-3.5.1.min.js') }}"></script>
 <script>
     $(document).ready(function() {
+        // Load servers
+        $.get('/api/public/servers', function(res) {
+            if(res.success && res.data.length > 0) {
+                const select = $('#serverSelect');
+                res.data.forEach(server => {
+                    select.append(`<option value="${server.ws_url}">${server.name} (${server.ws_url})</option>`);
+                });
+            }
+        });
+
         // 自动聚焦
         $('#nickname').focus();
 
@@ -298,7 +307,7 @@
                 $('#submitBtn').html('立即登录 <i class="fas fa-arrow-right ms-2"></i>');
                 $('#serverGroup').slideDown();
                 $('.app-brand h1').text('趣唠 TeamChat');
-                $('#authForm').attr('action', '/');
+                $('#authForm').attr('action', '/login');
                 $('#nickname').attr('placeholder', '请输入用户名或用户编码');
             }
         });

@@ -1,0 +1,243 @@
+{% extends "admin/base.html" %}
+
+{% block title %}AI 分析与报告{% endblock %}
+
+{% block content %}
+<div class="layui-card" style="height: calc(100vh - 110px); display: flex; flex-direction: column;">
+    <div class="layui-card-header">
+        <i class="layui-icon layui-icon-chart-screen"></i> AI 智能分析与报告
+        <span class="layui-badge layui-bg-blue" style="margin-left: 10px;">基于大模型与数据库对话</span>
+    </div>
+    <div class="layui-card-body" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 0;">
+        <!-- Chat History Area -->
+        <div id="chat-box" style="flex: 1; overflow-y: auto; padding: 20px; background-color: #f8f9fa;">
+            <div class="chat-message system">
+                <div class="message-content">
+                    <p>你好！我是您的智能数据分析助手。您可以问我关于用户、群组或消息数据的任何问题。</p>
+                    <p>例如：</p>
+                    <ul>
+                        <li>“分析一下当前的用户增长情况”</li>
+                        <li>“统计一下各个房间的活跃度”</li>
+                        <li>“最近一周的消息数量是多少？”</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div style="padding: 15px; background-color: #fff; border-top: 1px solid #eee;">
+            <div class="layui-form">
+                <div class="layui-form-item" style="margin-bottom: 0;">
+                    <div class="layui-input-block" style="margin-left: 0; display: flex;">
+                        <textarea id="user-input" class="layui-textarea" placeholder="输入您的问题..." style="min-height: 80px; resize: none; border-radius: 4px 0 0 4px;"></textarea>
+                        <button id="send-btn" class="layui-btn layui-btn-normal" style="height: auto; border-radius: 0 4px 4px 0; padding: 0 30px;">
+                            <i class="layui-icon layui-icon-release"></i> 发送
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .chat-message {
+        margin-bottom: 20px;
+        max-width: 80%;
+    }
+    .chat-message.user {
+        margin-left: auto;
+        text-align: right;
+    }
+    .chat-message.ai {
+        margin-right: auto;
+        text-align: left;
+    }
+    .chat-message .message-content {
+        display: inline-block;
+        padding: 10px 15px;
+        border-radius: 10px;
+        background-color: #fff;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        text-align: left;
+        word-wrap: break-word;
+    }
+    .chat-message.user .message-content {
+        background-color: #009688;
+        color: #fff;
+        border-radius: 10px 10px 0 10px;
+    }
+    .chat-message.ai .message-content {
+        background-color: #fff;
+        border-radius: 0 10px 10px 10px;
+    }
+    .chat-message.system .message-content {
+        background-color: #e2e2e2;
+        color: #666;
+        width: 100%;
+        max-width: 100%;
+        text-align: center;
+        border-radius: 4px;
+    }
+    .status-message {
+        text-align: center;
+        color: #999;
+        font-size: 12px;
+        margin-bottom: 10px;
+    }
+    .status-message i {
+        margin-right: 5px;
+    }
+    /* Markdown Styles */
+    .message-content table {
+        width: 100%;
+        background-color: #fff;
+        color: #666;
+        margin: 10px 0;
+        border-collapse: collapse;
+        border-spacing: 0;
+    }
+    .message-content th, .message-content td {
+        padding: 9px 15px;
+        min-height: 20px;
+        line-height: 20px;
+        border: 1px solid #e6e6e6;
+        font-size: 14px;
+    }
+    .message-content th {
+        text-align: left;
+        font-weight: 400;
+        background-color: #f2f2f2;
+    }
+    .message-content tr:hover {
+        background-color: #f8f8f8;
+    }
+    .message-content pre {
+        background-color: #f8f8f8;
+        padding: 10px;
+        border-radius: 4px;
+        overflow-x: auto;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<!-- Marked.js for Markdown rendering -->
+<script src="{{ url_for('static', filename='js/marked.min.js') }}"></script>
+<script>
+    layui.use(['layer', 'jquery'], function(){
+        var layer = layui.layer;
+        var $ = layui.jquery;
+
+        var chatBox = $('#chat-box');
+        var userInput = $('#user-input');
+        var sendBtn = $('#send-btn');
+        var isProcessing = false;
+
+        function appendMessage(role, content) {
+            var className = role === 'user' ? 'user' : 'ai';
+            var html = '<div class="chat-message ' + className + '"><div class="message-content">' + (role === 'ai' ? marked.parse(content) : content) + '</div></div>';
+            chatBox.append(html);
+            scrollToBottom();
+            return chatBox.children().last().find('.message-content');
+        }
+
+        function appendStatus(text) {
+            var html = '<div class="status-message"><i class="layui-icon layui-icon-loading layui-anim layui-anim-rotate layui-anim-loop"></i> <span>' + text + '</span></div>';
+            chatBox.append(html);
+            scrollToBottom();
+            return chatBox.children().last();
+        }
+
+        function scrollToBottom() {
+            chatBox.scrollTop(chatBox[0].scrollHeight);
+        }
+
+        async function sendMessage() {
+            var text = userInput.val().trim();
+            if (!text || isProcessing) return;
+
+            isProcessing = true;
+            userInput.val('');
+            sendBtn.addClass('layui-btn-disabled');
+            
+            appendMessage('user', text);
+            var statusElem = appendStatus('正在连接AI服务...');
+            var statusTextSpan = statusElem.find('span');
+            var aiContentElem = null;
+
+            try {
+                const response = await fetch('{{ url_for("backend.ai_analysis_chat") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message: text })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let aiResponse = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                
+                                if (data.status) {
+                                    // Update status message
+                                    statusTextSpan.text(data.message);
+                                } else if (data.content) {
+                                    // If this is the first content chunk, remove status and create AI message bubble
+                                    if (!aiContentElem) {
+                                        statusElem.remove();
+                                        aiContentElem = appendMessage('ai', '');
+                                    }
+                                    aiResponse += data.content;
+                                    aiContentElem.html(marked.parse(aiResponse));
+                                    scrollToBottom();
+                                } else if (data.error) {
+                                    statusElem.remove();
+                                    layer.msg('Error: ' + data.error);
+                                }
+                            } catch (e) {
+                                console.error('Error parsing JSON chunk', e);
+                            }
+                        }
+                    }
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                statusElem.remove();
+                layer.msg('请求失败，请稍后重试');
+            } finally {
+                if (!aiContentElem && statusElem) {
+                     statusElem.remove(); // Remove status if no content was received
+                }
+                isProcessing = false;
+                sendBtn.removeClass('layui-btn-disabled');
+            }
+        }
+
+        sendBtn.on('click', sendMessage);
+        userInput.on('keypress', function(e) {
+            if (e.which === 13 && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    });
+</script>
+{% endblock %}

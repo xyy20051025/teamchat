@@ -1,0 +1,68 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="layui-row layui-col-space15">
+    <div class="layui-col-md4">
+        <div class="layui-card">
+            <div class="layui-card-header">注册用户</div>
+            <div class="layui-card-body">
+                <h2 style="font-size: 36px; color: #009688;">{{ user_count }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="layui-col-md4">
+        <div class="layui-card">
+            <div class="layui-card-header">活跃群组</div>
+            <div class="layui-card-body">
+                <h2 style="font-size: 36px; color: #1E9FFF;">{{ room_count }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="layui-col-md4">
+        <div class="layui-card">
+            <div class="layui-card-header">消息总数</div>
+            <div class="layui-card-body">
+                <h2 style="font-size: 36px; color: #FFB800;">{{ message_count }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="layui-row layui-col-space15">
+    <div class="layui-col-md8">
+        <div class="layui-card">
+            <div class="layui-card-header">最新注册用户</div>
+            <div class="layui-card-body">
+                <table class="layui-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>用户名</th>
+                            <th>昵称</th>
+                            <th>注册时间</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in recent_users %}
+                        <tr>
+                            <td>{{ user.id }}</td>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.nickname }}</td>
+                            <td>{{ user.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="layui-col-md4">
+        <div class="layui-card">
+            <div class="layui-card-header">系统公告</div>
+            <div class="layui-card-body">
+                欢迎使用 QuLao 业务管理系统。
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,197 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="layui-fluid" style="padding: 15px;">
+    <div class="layui-card">
+        <div class="layui-card-header">
+            管理员管理
+            <button class="layui-btn layui-btn-sm layui-btn-normal" style="float: right; margin-top: 10px;" onclick="openAdminForm()">
+                <i class="layui-icon layui-icon-add-1"></i> 新增管理员
+            </button>
+        </div>
+        <div class="layui-card-body">
+            <table id="adminTable" lay-filter="adminTableFilter"></table>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Form -->
+<div id="adminForm" style="display: none; padding: 20px;">
+    <form class="layui-form" lay-filter="adminFormFilter">
+        <input type="hidden" name="id">
+        <div class="layui-form-item">
+            <label class="layui-form-label">用户名</label>
+            <div class="layui-input-block">
+                <input type="text" name="username" required lay-verify="required" placeholder="请输入用户名" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">密码</label>
+            <div class="layui-input-block">
+                <input type="password" name="password" placeholder="不修改请留空（新增默认123456）" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">角色</label>
+            <div class="layui-input-block" id="roleCheckboxes">
+                <!-- Checkboxes will be rendered here -->
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <div class="layui-input-block">
+                <button class="layui-btn" lay-submit lay-filter="saveAdmin">保存</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script type="text/html" id="adminBar">
+    <a class="layui-btn layui-btn-xs" lay-event="edit">编辑</a>
+    {% raw %}
+    {{# if(d.username !== 'admin'){ }}
+    <a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">删除</a>
+    {{# } }}
+    {% endraw %}
+</script>
+
+<script type="text/html" id="rolesTpl">
+    {% raw %}
+    {{#  layui.each(d.roles, function(index, item){ }}
+        <span class="layui-badge layui-bg-blue">{{ item.name }}</span>
+    {{#  }); }}
+    {% endraw %}
+</script>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+layui.use(['table', 'layer', 'form'], function(){
+    var table = layui.table;
+    var layer = layui.layer;
+    var form = layui.form;
+    var $ = layui.$;
+    
+    // Render Table
+    table.render({
+        elem: '#adminTable',
+        url: '{{ url_for("backend.get_admins") }}',
+        cols: [[
+            {field: 'id', title: 'ID', width: 80, sort: true},
+            {field: 'username', title: '用户名', width: 150},
+            {field: 'roles', title: '角色', templet: '#rolesTpl'},
+            {fixed: 'right', title:'操作', toolbar: '#adminBar', width: 150}
+        ]],
+        page: true,
+        limit: 20
+    });
+    
+    // Load all roles for checkboxes
+    var allRoles = [];
+    $.get('{{ url_for("backend.get_roles") }}', function(res){
+        if(res.code === 0){
+            allRoles = res.data;
+        }
+    });
+    
+    function renderRoleCheckboxes(selectedRoles){
+        var html = '';
+        var selectedIds = [];
+        if(selectedRoles){
+            selectedIds = selectedRoles.map(function(r){ return r.id; });
+        }
+        
+        layui.each(allRoles, function(index, item){
+            var checked = selectedIds.indexOf(item.id) !== -1 ? 'checked' : '';
+            html += '<input type="checkbox" name="role_ids" value="'+item.id+'" title="'+item.name+'" '+checked+'>';
+        });
+        $('#roleCheckboxes').html(html);
+        form.render('checkbox');
+    }
+
+    // Tools
+    table.on('tool(adminTableFilter)', function(obj){
+        var data = obj.data;
+        if(obj.event === 'del'){
+            layer.confirm('真的删除该管理员吗？', function(index){
+                $.ajax({
+                    url: '{{ url_for("backend.delete_admin") }}',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({id: data.id}),
+                    success: function(res){
+                        if(res.success){
+                            obj.del();
+                            layer.close(index);
+                        } else {
+                            layer.msg(res.message);
+                        }
+                    }
+                });
+            });
+        } else if(obj.event === 'edit'){
+            openAdminForm(data);
+        }
+    });
+    
+    window.openAdminForm = function(data){
+        // Reset form
+        $('input[name="id"]').val('');
+        $('#adminForm form')[0].reset();
+        
+        if(data){
+            form.val('adminFormFilter', {
+                'id': data.id,
+                'username': data.username
+            });
+            renderRoleCheckboxes(data.roles);
+        } else {
+            renderRoleCheckboxes([]);
+        }
+        
+        layer.open({
+            type: 1,
+            title: data ? '编辑管理员' : '新增管理员',
+            area: ['500px', '450px'],
+            content: $('#adminForm'),
+            success: function(){
+            }
+        });
+    }
+    
+    form.on('submit(saveAdmin)', function(data){
+        var field = data.field;
+        
+        // Collect checked roles
+        var role_ids = [];
+        $('#roleCheckboxes input:checked').each(function(){
+            role_ids.push(parseInt($(this).val()));
+        });
+        
+        var payload = {
+            id: field.id,
+            username: field.username,
+            password: field.password,
+            role_ids: role_ids
+        };
+
+        $.ajax({
+            url: '{{ url_for("backend.save_admin") }}',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(payload),
+            success: function(res){
+                if(res.success){
+                    layer.closeAll();
+                    layer.msg('保存成功');
+                    table.reload('adminTable');
+                } else {
+                    layer.msg(res.message);
+                }
+            }
+        });
+        return false;
+    });
+});
+</script>
+{% endblock %}

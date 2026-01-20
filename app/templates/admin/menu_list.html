@@ -1,0 +1,162 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="layui-fluid" style="padding: 15px;">
+    <div class="layui-card">
+        <div class="layui-card-header">
+            菜单管理
+            <button class="layui-btn layui-btn-sm layui-btn-normal" style="float: right; margin-top: 10px;" onclick="openMenuForm()">
+                <i class="layui-icon layui-icon-add-1"></i> 新增菜单
+            </button>
+        </div>
+        <div class="layui-card-body">
+            <table id="menuTable" lay-filter="menuTableFilter"></table>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Form -->
+<div id="menuForm" style="display: none; padding: 20px;">
+    <form class="layui-form" lay-filter="menuFormFilter">
+        <input type="hidden" name="id">
+        <div class="layui-form-item">
+            <label class="layui-form-label">菜单名称</label>
+            <div class="layui-input-block">
+                <input type="text" name="name" required lay-verify="required" placeholder="请输入菜单名称" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">图标Class</label>
+            <div class="layui-input-block">
+                <input type="text" name="icon" placeholder="layui-icon-home" class="layui-input">
+                <div class="layui-form-mid layui-word-aux">请参考 Layui 图标文档</div>
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">链接/路由</label>
+            <div class="layui-input-block">
+                <input type="text" name="url" required lay-verify="required" placeholder="backend.index" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">排序</label>
+            <div class="layui-input-block">
+                <input type="number" name="order" value="0" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <div class="layui-input-block">
+                <button class="layui-btn" lay-submit lay-filter="saveMenu">保存</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script type="text/html" id="menuBar">
+    <a class="layui-btn layui-btn-xs" lay-event="edit">编辑</a>
+    <a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">删除</a>
+</script>
+
+<script type="text/html" id="iconTpl">
+    {% raw %}
+    {{# if(d.icon){ }}
+    <i class="layui-icon {{d.icon}}"></i> {{d.icon}}
+    {{# } }}
+    {% endraw %}
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+layui.use(['table', 'layer', 'form'], function(){
+    var table = layui.table;
+    var layer = layui.layer;
+    var form = layui.form;
+    var $ = layui.$;
+    
+    // Render Table
+    table.render({
+        elem: '#menuTable',
+        url: '{{ url_for("backend.get_menus") }}',
+        cols: [[
+            {field: 'id', title: 'ID', width: 80, sort: true},
+            {field: 'name', title: '菜单名称', width: 150},
+            {field: 'icon', title: '图标', width: 200, templet: '#iconTpl'},
+            {field: 'url', title: '路由地址'},
+            {field: 'order', title: '排序', width: 80, sort: true},
+            {fixed: 'right', title:'操作', toolbar: '#menuBar', width: 150}
+        ]],
+        page: true,
+        limit: 20
+    });
+    
+    // Tools
+    table.on('tool(menuTableFilter)', function(obj){
+        var data = obj.data;
+        if(obj.event === 'del'){
+            layer.confirm('真的删除该菜单吗？', function(index){
+                $.ajax({
+                    url: '{{ url_for("backend.delete_menu") }}',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({id: data.id}),
+                    success: function(res){
+                        if(res.success){
+                            obj.del();
+                            layer.close(index);
+                            // Refresh page to update sidebar
+                            location.reload(); 
+                        } else {
+                            layer.msg(res.message);
+                        }
+                    }
+                });
+            });
+        } else if(obj.event === 'edit'){
+            openMenuForm(data);
+        }
+    });
+    
+    window.openMenuForm = function(data){
+        // Reset form
+        $('input[name="id"]').val('');
+        $('#menuForm form')[0].reset();
+        
+        if(data){
+            form.val('menuFormFilter', data);
+        }
+        
+        layer.open({
+            type: 1,
+            title: data ? '编辑菜单' : '新增菜单',
+            area: ['500px', '400px'],
+            content: $('#menuForm'),
+            success: function(){
+                // Ensure form renders correctly
+            }
+        });
+    }
+    
+    form.on('submit(saveMenu)', function(data){
+        $.ajax({
+            url: '{{ url_for("backend.save_menu") }}',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data.field),
+            success: function(res){
+                if(res.success){
+                    layer.closeAll();
+                    layer.msg('保存成功');
+                    table.reload('menuTable');
+                    // Refresh page to update sidebar
+                    setTimeout(function(){ location.reload(); }, 1000);
+                } else {
+                    layer.msg(res.message);
+                }
+            }
+        });
+        return false;
+    });
+});
+</script>
+{% endblock %}

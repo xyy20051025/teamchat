@@ -1,0 +1,79 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="layui-fluid" style="padding: 15px;">
+    <div class="layui-row layui-col-space15" id="fileContainer">
+        <!-- File cards will be rendered here -->
+    </div>
+    <div id="pagination" style="text-align: center; margin-top: 20px;"></div>
+</div>
+
+<!-- Template for File Card -->
+<script type="text/html" id="fileCardTpl">
+    {% raw %}
+    {{#  layui.each(d.data, function(index, item){ }}
+    <div class="layui-col-md3">
+        <div class="layui-card">
+            <div class="layui-card-header" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ item.filename }}">
+                <i class="layui-icon layui-icon-file"></i> {{ item.filename }}
+            </div>
+            <div class="layui-card-body">
+                <p>发送人: {{ item.sender }}</p>
+                <p>发送时间: {{ item.timestamp }}</p>
+                <p>文件大小: <span class="layui-badge layui-bg-gray">{{ item.size }}</span></p>
+                <p>文件格式: <span class="layui-badge layui-bg-blue">{{ item.format }}</span></p>
+                <hr>
+                <div class="layui-btn-group">
+                    <button class="layui-btn layui-btn-sm layui-btn-normal" onclick="window.open('{{ item.url }}', '_blank')">查看/下载</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {{#  }); }}
+    {{#  if(d.data.length === 0){ }}
+    <div class="layui-col-md12" style="text-align: center; color: #999;">暂无文件数据</div>
+    {{#  } }}
+    {% endraw %}
+</script>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+layui.use(['laypage', 'layer', 'laytpl'], function(){
+    var laypage = layui.laypage;
+    var layer = layui.layer;
+    var laytpl = layui.laytpl;
+    var $ = layui.$;
+    
+    var limit = 12;
+
+    function loadFiles(page) {
+        $.getJSON('{{ url_for("backend.get_files") }}', {page: page, limit: limit}, function(res){
+            if(res.code === 0){
+                var getTpl = document.getElementById('fileCardTpl').innerHTML;
+                laytpl(getTpl).render(res, function(html){
+                    document.getElementById('fileContainer').innerHTML = html;
+                });
+                
+                laypage.render({
+                    elem: 'pagination',
+                    count: res.count,
+                    limit: limit,
+                    curr: page,
+                    jump: function(obj, first){
+                        if(!first){
+                            loadFiles(obj.curr);
+                        }
+                    }
+                });
+            } else {
+                layer.msg(res.msg);
+            }
+        });
+    }
+    
+    loadFiles(1);
+});
+</script>
+{% endblock %}

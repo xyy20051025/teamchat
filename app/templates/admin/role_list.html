@@ -1,0 +1,187 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="layui-fluid" style="padding: 15px;">
+    <div class="layui-card">
+        <div class="layui-card-header">
+            角色管理
+            <button class="layui-btn layui-btn-sm layui-btn-normal" style="float: right; margin-top: 10px;" onclick="openRoleForm()">
+                <i class="layui-icon layui-icon-add-1"></i> 新增角色
+            </button>
+        </div>
+        <div class="layui-card-body">
+            <table id="roleTable" lay-filter="roleTableFilter"></table>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Form -->
+<div id="roleForm" style="display: none; padding: 20px;">
+    <form class="layui-form" lay-filter="roleFormFilter">
+        <input type="hidden" name="id">
+        <div class="layui-form-item">
+            <label class="layui-form-label">角色名称</label>
+            <div class="layui-input-block">
+                <input type="text" name="name" required lay-verify="required" placeholder="请输入角色名称" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">描述</label>
+            <div class="layui-input-block">
+                <textarea name="description" placeholder="请输入描述" class="layui-textarea"></textarea>
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">菜单权限</label>
+            <div class="layui-input-block" id="menuCheckboxes">
+                <!-- Checkboxes will be rendered here -->
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <div class="layui-input-block">
+                <button class="layui-btn" lay-submit lay-filter="saveRole">保存</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script type="text/html" id="roleBar">
+    <a class="layui-btn layui-btn-xs" lay-event="edit">编辑</a>
+    <a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">删除</a>
+</script>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+layui.use(['table', 'layer', 'form'], function(){
+    var table = layui.table;
+    var layer = layui.layer;
+    var form = layui.form;
+    var $ = layui.$;
+    
+    // Render Table
+    table.render({
+        elem: '#roleTable',
+        url: '{{ url_for("backend.get_roles") }}',
+        cols: [[
+            {field: 'id', title: 'ID', width: 80, sort: true},
+            {field: 'name', title: '角色名称', width: 150},
+            {field: 'description', title: '描述'},
+            {field: 'created_at', title: '创建时间', width: 160},
+            {fixed: 'right', title:'操作', toolbar: '#roleBar', width: 150}
+        ]],
+        page: true,
+        limit: 20
+    });
+    
+    // Load all menus for checkboxes
+    var allMenus = [];
+    $.get('{{ url_for("backend.get_menus") }}', function(res){
+        if(res.code === 0){
+            allMenus = res.data;
+        }
+    });
+    
+    function renderMenuCheckboxes(selectedMenus){
+        var html = '';
+        var selectedIds = [];
+        if(selectedMenus){
+            selectedIds = selectedMenus.map(function(m){ return m.id; });
+        }
+        
+        layui.each(allMenus, function(index, item){
+            var checked = selectedIds.indexOf(item.id) !== -1 ? 'checked' : '';
+            html += '<input type="checkbox" name="menu_ids" value="'+item.id+'" title="'+item.name+'" '+checked+'>';
+        });
+        $('#menuCheckboxes').html(html);
+        form.render('checkbox');
+    }
+
+    // Tools
+    table.on('tool(roleTableFilter)', function(obj){
+        var data = obj.data;
+        if(obj.event === 'del'){
+            layer.confirm('真的删除该角色吗？', function(index){
+                $.ajax({
+                    url: '{{ url_for("backend.delete_role") }}',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({id: data.id}),
+                    success: function(res){
+                        if(res.success){
+                            obj.del();
+                            layer.close(index);
+                        } else {
+                            layer.msg(res.message);
+                        }
+                    }
+                });
+            });
+        } else if(obj.event === 'edit'){
+            openRoleForm(data);
+        }
+    });
+    
+    window.openRoleForm = function(data){
+        // Reset form
+        $('input[name="id"]').val('');
+        $('#roleForm form')[0].reset();
+        
+        if(data){
+            form.val('roleFormFilter', {
+                'id': data.id,
+                'name': data.name,
+                'description': data.description
+            });
+            renderMenuCheckboxes(data.menus);
+        } else {
+            renderMenuCheckboxes([]);
+        }
+        
+        layer.open({
+            type: 1,
+            title: data ? '编辑角色' : '新增角色',
+            area: ['600px', '500px'],
+            content: $('#roleForm'),
+            success: function(){
+            }
+        });
+    }
+    
+    form.on('submit(saveRole)', function(data){
+        var field = data.field;
+        
+        // Collect checked menus manually because layui checkbox handling in form.on submit might be tricky for arrays
+        var menu_ids = [];
+        $('#menuCheckboxes input:checked').each(function(){
+            menu_ids.push(parseInt($(this).val()));
+        });
+        
+        var payload = {
+            id: field.id,
+            name: field.name,
+            description: field.description,
+            menu_ids: menu_ids
+        };
+
+        $.ajax({
+            url: '{{ url_for("backend.save_role") }}',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(payload),
+            success: function(res){
+                if(res.success){
+                    layer.closeAll();
+                    layer.msg('保存成功');
+                    table.reload('roleTable');
+                } else {
+                    layer.msg(res.message);
+                }
+            }
+        });
+        return false;
+    });
+});
+</script>
+{% endblock %}

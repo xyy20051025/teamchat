@@ -1,0 +1,236 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="layui-fluid" style="padding: 15px;">
+    <div class="layui-row layui-col-space15" id="roomContainer">
+        <!-- Room cards will be rendered here -->
+    </div>
+    <div id="pagination" style="text-align: center; margin-top: 20px;"></div>
+</div>
+
+<!-- Template for Room Card -->
+<script type="text/html" id="roomCardTpl">
+    {% raw %}
+    {{#  layui.each(d.data, function(index, item){ }}
+    <div class="layui-col-md3">
+        <div class="layui-card">
+            <div class="layui-card-header">
+                {{ item.name }} 
+                {{# if(item.is_banned){ }}
+                <span class="layui-badge">封禁</span>
+                {{# } }}
+            </div>
+            <div class="layui-card-body">
+                <p>ID: {{ item.id }}</p>
+                <p>成员数: <span class="layui-badge layui-bg-blue">{{ item.member_count }}</span></p>
+                <p>封禁用户数: <span class="layui-badge layui-bg-red">{{ item.banned_member_count }}</span></p>
+                <hr>
+                <div class="layui-btn-group">
+                    <button class="layui-btn layui-btn-xs layui-btn-primary room-action" data-type="members" data-id="{{ item.id }}" data-name="{{ item.name }}">成员</button>
+                    <button class="layui-btn layui-btn-xs layui-btn-primary room-action" data-type="messages" data-id="{{ item.id }}" data-name="{{ item.name }}">记录</button>
+                    <button class="layui-btn layui-btn-xs layui-btn-primary room-action" data-type="announcement" data-id="{{ item.id }}">公告</button>
+                    {{# if(item.is_banned){ }}
+                    <button class="layui-btn layui-btn-xs layui-btn-normal room-action" data-type="unban" data-id="{{ item.id }}">解封</button>
+                    {{# } else { }}
+                    <button class="layui-btn layui-btn-xs layui-btn-warm room-action" data-type="ban" data-id="{{ item.id }}">封禁</button>
+                    {{# } }}
+                    <button class="layui-btn layui-btn-xs layui-btn-danger room-action" data-type="delete" data-id="{{ item.id }}">删除</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {{#  }); }}
+    {{#  if(d.data.length === 0){ }}
+    <div class="layui-col-md12" style="text-align: center; color: #999;">暂无数据</div>
+    {{#  } }}
+    {% endraw %}
+</script>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+layui.use(['laypage', 'layer', 'laytpl', 'table', 'form'], function(){
+    var laypage = layui.laypage;
+    var layer = layui.layer;
+    var laytpl = layui.laytpl;
+    var table = layui.table;
+    var form = layui.form;
+    var $ = layui.$;
+    
+    var limit = 12;
+
+    function loadRooms(page) {
+        $.getJSON('{{ url_for("backend.get_rooms") }}', {page: page, limit: limit}, function(res){
+            if(res.code === 0){
+                var getTpl = document.getElementById('roomCardTpl').innerHTML;
+                laytpl(getTpl).render(res, function(html){
+                    document.getElementById('roomContainer').innerHTML = html;
+                });
+                
+                laypage.render({
+                    elem: 'pagination',
+                    count: res.count,
+                    limit: limit,
+                    curr: page,
+                    jump: function(obj, first){
+                        if(!first){
+                            loadRooms(obj.curr);
+                        }
+                    }
+                });
+            } else {
+                layer.msg(res.msg);
+            }
+        });
+    }
+    
+    loadRooms(1);
+    
+    // Event delegation for room actions
+    $(document).on('click', '.room-action', function() {
+        var type = $(this).data('type');
+        var id = $(this).data('id');
+        var name = $(this).data('name');
+        
+        if(type === 'members') viewMembers(id, name);
+        else if(type === 'messages') viewMessages(id, name);
+        else if(type === 'announcement') manageAnnouncement(id);
+        else if(type === 'ban') banRoom(id, true);
+        else if(type === 'unban') banRoom(id, false);
+        else if(type === 'delete') deleteRoom(id);
+    });
+    
+    window.viewMembers = function(id, name) {
+        layer.open({
+            type: 1,
+            title: name + ' - 成员列表',
+            area: ['600px', '400px'],
+            content: '<table id="memberTable"></table>',
+            success: function(layero, index){
+                table.render({
+                    elem: '#memberTable',
+                    url: '{{ url_for("backend.get_room_members") }}?room_id=' + id,
+                    cols: [[
+                        {field: 'username', title: '用户名'},
+                        {field: 'nickname', title: '昵称'},
+                        {field: 'is_banned', title: '状态', templet: function(d){
+                            return d.is_banned ? '<span style="color:red">封禁</span>' : '正常';
+                        }},
+                        {field: 'joined_at', title: '加入时间'}
+                    ]]
+                });
+            }
+        });
+    };
+    
+    window.deleteRoom = function(id) {
+        layer.confirm('确定要删除该房间吗？', function(index){
+            $.ajax({
+                url: '{{ url_for("backend.delete_room") }}',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({id: id}),
+                success: function(res){
+                    if(res.success){
+                        layer.msg('删除成功');
+                        loadRooms(1); // Reload from first page
+                    } else {
+                        layer.msg(res.message);
+                    }
+                }
+            });
+            layer.close(index);
+        });
+    };
+    
+    window.banRoom = function(id, ban) {
+        layer.confirm(ban ? '确定封禁该房间？' : '确定解封该房间？', function(index){
+            $.ajax({
+                url: '{{ url_for("backend.ban_room") }}',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({id: id, ban: ban}),
+                success: function(res){
+                    if(res.success){
+                        layer.msg('操作成功');
+                        loadRooms(1); // Could ideally stay on same page
+                    } else {
+                        layer.msg(res.message);
+                    }
+                }
+            });
+            layer.close(index);
+        });
+    };
+    
+    window.manageAnnouncement = function(id) {
+        // First fetch current announcement
+        $.getJSON('{{ url_for("backend.get_room_announcement") }}', {room_id: id}, function(res){
+            if(res.success){
+                layer.open({
+                    type: 1,
+                    title: '群公告管理',
+                    area: ['500px', '300px'],
+                    content: `
+                        <div style="padding: 20px;">
+                            <form class="layui-form">
+                                <div class="layui-form-item layui-form-text">
+                                    <textarea name="announcement" placeholder="请输入公告内容" class="layui-textarea" style="height: 150px;">${res.announcement || ''}</textarea>
+                                </div>
+                                <div class="layui-form-item">
+                                    <button class="layui-btn layui-btn-fluid" lay-submit lay-filter="announceSubmit">保存</button>
+                                </div>
+                            </form>
+                        </div>
+                    `,
+                    success: function(layero, index){
+                        form.render();
+                        form.on('submit(announceSubmit)', function(data){
+                            $.ajax({
+                                url: '{{ url_for("backend.update_room_announcement") }}',
+                                type: 'POST',
+                                contentType: 'application/json',
+                                data: JSON.stringify({id: id, announcement: data.field.announcement}),
+                                success: function(res){
+                                    if(res.success){
+                                        layer.close(index);
+                                        layer.msg('公告更新成功');
+                                    } else {
+                                        layer.msg(res.message);
+                                    }
+                                }
+                            });
+                            return false;
+                        });
+                    }
+                });
+            } else {
+                layer.msg(res.message);
+            }
+        });
+    };
+
+    window.viewMessages = function(id, name) {
+        layer.open({
+            type: 1,
+            title: name + ' - 聊天记录',
+            area: ['800px', '600px'],
+            content: '<table id="messageTable"></table>',
+            success: function(layero, index){
+                table.render({
+                    elem: '#messageTable',
+                    url: '{{ url_for("backend.get_room_messages") }}?room_id=' + id,
+                    page: true,
+                    cols: [[
+                        {field: 'user', title: '发送者', width: 120},
+                        {field: 'content', title: '内容'},
+                        {field: 'timestamp', title: '时间', width: 160}
+                    ]]
+                });
+            }
+        });
+    };
+});
+</script>
+{% endblock %}

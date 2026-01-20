@@ -1,0 +1,172 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="layui-fluid" style="padding: 15px;">
+    <div class="layui-card">
+        <div class="layui-card-header">
+            <button class="layui-btn layui-btn-sm" onclick="addServer()">
+                <i class="layui-icon layui-icon-add-1"></i> 新增服务器
+            </button>
+        </div>
+        <div class="layui-card-body">
+            <div class="layui-row layui-col-space15" id="serverContainer">
+                <!-- Server cards will be rendered here -->
+            </div>
+            <div id="pagination" style="text-align: center; margin-top: 20px;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Template for Server Card -->
+<script type="text/html" id="serverCardTpl">
+    {% raw %}
+    {{#  layui.each(d.data, function(index, item){ }}
+    <div class="layui-col-md3">
+        <div class="layui-card" style="border: 1px solid #f2f2f2;">
+            <div class="layui-card-header" style="font-weight: bold;">
+                <i class="layui-icon layui-icon-website"></i> {{ item.name }}
+            </div>
+            <div class="layui-card-body">
+                <p style="margin-bottom: 10px; word-break: break-all;">
+                    <span class="layui-badge layui-bg-green">WS地址</span>
+                    {{ item.ws_url }}
+                </p>
+                <p style="color: #999; font-size: 12px;">创建时间: {{ item.created_at }}</p>
+                <hr>
+                <div class="layui-btn-group">
+                    <button class="layui-btn layui-btn-sm layui-btn-danger server-action" data-type="delete" data-id="{{ item.id }}">删除</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {{#  }); }}
+    {{#  if(d.data.length === 0){ }}
+    <div class="layui-col-md12" style="text-align: center; color: #999;">暂无服务器配置</div>
+    {{#  } }}
+    {% endraw %}
+</script>
+
+<!-- Add Server Modal Form -->
+<div id="addServerForm" style="display: none; padding: 20px;">
+    <form class="layui-form">
+        <div class="layui-form-item">
+            <label class="layui-form-label">服务器名称</label>
+            <div class="layui-input-block">
+                <input type="text" name="name" required lay-verify="required" placeholder="如：华东节点" autocomplete="off" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">WS地址</label>
+            <div class="layui-input-block">
+                <input type="text" name="ws_url" required lay-verify="required" placeholder="如：ws://192.168.1.100:8000/ws" autocomplete="off" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <div class="layui-input-block">
+                <button class="layui-btn" lay-submit lay-filter="addServerSubmit">提交</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+layui.use(['laypage', 'layer', 'laytpl', 'form'], function(){
+    var laypage = layui.laypage;
+    var layer = layui.layer;
+    var laytpl = layui.laytpl;
+    var form = layui.form;
+    var $ = layui.$;
+    
+    var limit = 12;
+
+    window.loadServers = function(page) {
+        $.getJSON('{{ url_for("backend.get_servers") }}', {page: page, limit: limit}, function(res){
+            if(res.code === 0){
+                var getTpl = document.getElementById('serverCardTpl').innerHTML;
+                laytpl(getTpl).render(res, function(html){
+                    document.getElementById('serverContainer').innerHTML = html;
+                });
+                
+                laypage.render({
+                    elem: 'pagination',
+                    count: res.count,
+                    limit: limit,
+                    curr: page,
+                    jump: function(obj, first){
+                        if(!first){
+                            loadServers(obj.curr);
+                        }
+                    }
+                });
+            } else {
+                layer.msg(res.msg);
+            }
+        });
+    }
+    
+    window.addServer = function() {
+        layer.open({
+            type: 1,
+            title: '新增服务器',
+            area: ['500px', '300px'],
+            content: $('#addServerForm'),
+            success: function() {
+                form.render();
+            }
+        });
+    }
+    
+    form.on('submit(addServerSubmit)', function(data){
+        $.ajax({
+            url: '{{ url_for("backend.save_server") }}',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data.field),
+            success: function(res) {
+                if(res.success) {
+                    layer.closeAll();
+                    layer.msg('添加成功');
+                    loadServers(1);
+                    $('#addServerForm form')[0].reset();
+                } else {
+                    layer.msg(res.message);
+                }
+            }
+        });
+        return false;
+    });
+    
+    window.deleteServer = function(id) {
+        layer.confirm('确定要删除该服务器配置吗？', function(index){
+            $.ajax({
+                url: '{{ url_for("backend.delete_server") }}',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({id: id}),
+                success: function(res) {
+                    if(res.success) {
+                        layer.msg('删除成功');
+                        loadServers(1);
+                    } else {
+                        layer.msg(res.message);
+                    }
+                }
+            });
+            layer.close(index);
+        });
+    }
+    
+    loadServers(1);
+    
+    // Event delegation for server actions
+    $(document).on('click', '.server-action', function() {
+        var type = $(this).data('type');
+        var id = $(this).data('id');
+        if(type === 'delete') deleteServer(id);
+    });
+});
+</script>
+{% endblock %}
