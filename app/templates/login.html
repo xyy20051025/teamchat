@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>趣唠 - 登录</title>
+    <!-- 引入 Bootstrap 5 -->
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.1/css/bootstrap.min.css" rel="stylesheet">
+    <!-- 引入 FontAwesome -->
+    <link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #ff7eb3;
+            --primary-hover: #ff5f9e;
+            --bg-gradient-pink: linear-gradient(135deg, #fccb90 0%, #d57eeb 100%);
+        }
+
+        body {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-image: var(--bg-gradient-pink);
+            font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 900px;
+            height: 550px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+            display: flex;
+            overflow: hidden;
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .login-sidebar {
+            flex: 1;
+            /* 替换为稳定的图片源，避免 ORB 错误 */
+            background: url('https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=800&auto=format&fit=crop') no-repeat center center;
+            background-size: cover;
+            position: relative;
+            display: none; /* 移动端隐藏 */
+        }
+
+        .login-sidebar::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(to bottom, rgba(255, 126, 179, 0.3), rgba(100, 50, 200, 0.6));
+        }
+
+        .login-sidebar-content {
+            position: relative;
+            z-index: 1;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: 40px;
+            color: white;
+        }
+
+        .login-sidebar-content h2 {
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .login-sidebar-content p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+
+        .login-form-wrapper {
+            flex: 1;
+            padding: 50px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background-color: #fff;
+        }
+
+        @media (min-width: 768px) {
+            .login-sidebar {
+                display: block;
+            }
+        }
+
+        .app-brand {
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        .app-brand i {
+            color: var(--primary-color);
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+
+        .app-brand h1 {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #333;
+            letter-spacing: 2px;
+        }
+
+        /* 优化输入框样式：带图标的输入框 */
+        .input-group-custom {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .input-group-custom .icon-wrapper {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #aaa;
+            font-size: 1.1rem;
+            z-index: 10;
+            transition: color 0.3s;
+        }
+
+        .input-group-custom .form-control {
+            padding-left: 45px; /* 为图标留出空间 */
+            padding-right: 15px;
+            height: 50px;
+            border-radius: 10px;
+            border: 1px solid #eee;
+            background-color: #f8f9fa;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .input-group-custom .form-control:focus {
+            background-color: #fff;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.25rem rgba(255, 126, 179, 0.25);
+        }
+
+        .input-group-custom .form-control:focus + .icon-wrapper {
+            color: var(--primary-color);
+        }
+
+        /* 下拉框样式优化 */
+        .form-select-custom {
+            padding-left: 45px;
+            height: 50px;
+            border-radius: 10px;
+            border: 1px solid #eee;
+            background-color: #f8f9fa;
+            cursor: pointer;
+        }
+        
+        .form-select-custom:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.25rem rgba(255, 126, 179, 0.25);
+        }
+
+        .btn-login {
+            background-color: var(--primary-color);
+            border: none;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin-top: 10px;
+            color: white;
+            width: 100%;
+        }
+
+        .btn-login:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 126, 179, 0.4);
+            color: white;
+        }
+
+        .copyright {
+            margin-top: auto;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #aaa;
+            padding-top: 20px;
+        }
+
+        .auth-switch {
+            margin-top: 15px;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        .auth-switch a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .alert-custom {
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            background-color: #ffe6e6;
+            color: #d63031;
+            border: 1px solid #ff7675;
+            font-size: 0.9rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="login-container">
+    <div class="login-sidebar">
+        <div class="login-sidebar-content">
+            <h2>连接你我，趣唠无限</h2>
+            <p>基于 WebSocket 的极速聊天体验，随时随地分享生活。</p>
+        </div>
+    </div>
+    <div class="login-form-wrapper">
+        <div class="app-brand">
+            <i class="fas fa-comment-dots"></i>
+            <h1>趣唠 TeamChat</h1>
+        </div>
+        
+        <div id="alertArea" class="alert-custom"></div>
+
+        <form id="authForm" method="POST" action="/">
+            <div class="input-group-custom">
+                <input type="text" class="form-control" id="nickname" name="nickname" placeholder="请输入您的昵称" required>
+                <div class="icon-wrapper"><i class="fas fa-user"></i></div>
+            </div>
+            
+            <div class="input-group-custom">
+                <input type="password" class="form-control" id="password" name="password" placeholder="请输入密码" required>
+                <div class="icon-wrapper"><i class="fas fa-lock"></i></div>
+            </div>
+
+            <div class="input-group-custom" id="serverGroup">
+                <select class="form-select form-select-custom" id="serverSelect" name="server">
+                    <option value="server1">华东服务器 (推荐)</option>
+                    <option value="server2">华北服务器 (备用)</option>
+                </select>
+                <div class="icon-wrapper"><i class="fas fa-server"></i></div>
+            </div>
+
+            <button type="submit" class="btn btn-login" id="submitBtn">
+                立即登录 <i class="fas fa-arrow-right ms-2"></i>
+            </button>
+        </form>
+
+        <div class="auth-switch">
+            <span id="switchText">还没有账号？</span>
+            <a id="switchBtn">立即注册</a>
+        </div>
+        
+        <div class="copyright">
+            &copy; 2026 趣唠 TeamChat. 版权所有.
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script>
+    $(document).ready(function() {
+        // 自动聚焦
+        $('#nickname').focus();
+
+        let isRegister = false;
+
+        // 切换登录/注册
+        $('#switchBtn').click(function() {
+            isRegister = !isRegister;
+            $('#alertArea').hide();
+            
+            if (isRegister) {
+                $('#switchText').text('已有账号？');
+                $(this).text('立即登录');
+                $('#submitBtn').html('立即注册 <i class="fas fa-user-plus ms-2"></i>');
+                $('#serverGroup').slideUp();
+                $('.app-brand h1').text('趣唠 - 注册');
+                $('#authForm').attr('action', '/register'); // 虽然注册用AJAX，但修改action是个好习惯
+            } else {
+                $('#switchText').text('还没有账号？');
+                $(this).text('立即注册');
+                $('#submitBtn').html('立即登录 <i class="fas fa-arrow-right ms-2"></i>');
+                $('#serverGroup').slideDown();
+                $('.app-brand h1').text('趣唠 TeamChat');
+                $('#authForm').attr('action', '/');
+            }
+        });
+
+        $('#authForm').on('submit', function(e) {
+            if (isRegister) {
+                e.preventDefault();
+                const nickname = $('#nickname').val().trim();
+                const password = $('#password').val();
+                
+                const btn = $('#submitBtn');
+                const originalText = btn.html();
+                btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>注册中...');
+
+                $.ajax({
+                    url: '/register',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({username: nickname, password: password}),
+                    success: function(res) {
+                        btn.prop('disabled', false).html(originalText);
+                        if (res.success) {
+                            alert(res.message);
+                            // 切换回登录
+                            $('#switchBtn').click();
+                            $('#password').val('');
+                        } else {
+                            $('#alertArea').text(res.message).slideDown();
+                        }
+                    },
+                    error: function() {
+                        btn.prop('disabled', false).html(originalText);
+                        $('#alertArea').text('注册请求失败，请检查网络或联系管理员').slideDown();
+                    }
+                });
+            } else {
+                // 登录模式：使用默认表单提交
+                // 简单的加载动画效果
+                const btn = $('#submitBtn');
+                // 注意：如果表单提交了，页面会刷新，动画可能只显示一瞬间
+                // btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>登录中...');
+            }
+        });
+
+        {% if error %}
+        $('#alertArea').text("{{ error }}").show();
+        {% endif %}
+    });
+</script>
+
+</body>
+</html>
