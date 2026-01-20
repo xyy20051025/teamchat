@@ -450,6 +450,35 @@
             align-items: center;
             padding: 0 25px;
             flex-shrink: 0;
+            position: relative; /* 为了定位公告 */
+            z-index: 10;
+        }
+
+        /* 公告区域样式 */
+        .announcement-bar {
+            background: #fff3cd;
+            color: #856404;
+            padding: 8px 20px;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #ffeeba;
+            display: none; /* 默认隐藏，有公告时显示 */
+        }
+        .announcement-content {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+        .announcement-actions {
+            font-size: 0.8em;
+            cursor: pointer;
+            color: #533f03;
+            text-decoration: underline;
         }
 
         .header-info h5 {
@@ -690,7 +719,7 @@
     <!-- 1. 左侧 Sidebar -->
     <div class="sidebar">
         <div class="avatar-container">
-            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed={{ nickname }}" alt="My Avatar" class="my-avatar" title="{{ nickname }}">
+            <img src="{{ user.avatar }}" alt="My Avatar" class="my-avatar" title="点击修改个人信息" id="sidebarAvatar">
         </div>
         
         <div class="nav-item active" title="消息">
@@ -699,8 +728,8 @@
         <div class="nav-item" title="联系人">
             <i class="fas fa-user-friends"></i>
         </div>
-        <div class="nav-item" title="空间">
-            <i class="fas fa-star"></i>
+        <div class="nav-item" title="查找好友" id="navAddFriend">
+            <i class="fas fa-user-plus"></i>
         </div>
         <div class="nav-item" title="文件">
             <i class="fas fa-folder"></i>
@@ -818,11 +847,19 @@
                 </div>
             </div>
             <div class="header-actions">
+                <i class="fas fa-bullhorn" title="发布公告" id="btnAnnouncement"></i>
                 <i class="fas fa-phone-alt" title="语音通话"></i>
                 <i class="fas fa-video" title="视频通话"></i>
                 <i class="fas fa-users" id="toggleUserList" title="在线用户列表"></i>
-                <i class="fas fa-ellipsis-h" title="更多信息"></i>
+                <i class="fas fa-ellipsis-h" title="更多信息" id="btnGroupInfo"></i>
             </div>
+        </div>
+        
+        <!-- 公告栏 -->
+        <div class="announcement-bar" id="announcementBar">
+            <i class="fas fa-bullhorn me-2"></i>
+            <span class="announcement-content" id="announcementText" title="点击查看详情">暂无公告</span>
+            <span class="announcement-actions" id="editAnnouncement">编辑</span>
         </div>
 
         <div class="msg-container" id="messageContainer">
@@ -846,9 +883,10 @@
                 <div class="toolbar-btn" title="表情" id="btnEmoji"><i class="far fa-smile"></i></div>
                 <div class="toolbar-btn" title="图片" id="btnImage"><i class="far fa-image"></i></div>
                 <div class="toolbar-btn" title="GIF" id="btnGif"><i class="fas fa-sticky-note"></i></div>
-                <div class="toolbar-btn" title="文件"><i class="fas fa-paperclip"></i></div>
+                <div class="toolbar-btn" title="文件" id="btnFile"><i class="fas fa-paperclip"></i></div>
                 <!-- 隐藏的文件输入框 -->
                 <input type="file" id="imageInput" accept="image/*" style="display: none;">
+                <input type="file" id="fileInput" style="display: none;">
             </div>
             <div class="input-box">
                 <textarea id="msgInput" placeholder="请输入消息..."></textarea>
@@ -861,11 +899,399 @@
     </div>
 </div>
 
-<script src="{{ url_for('static', filename='vendor/jquery/jquery-3.5.1.min.js') }}"></script>
+<!-- 公告编辑模态框 -->
+    <div class="modal fade" id="announcementModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑群公告</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <textarea class="form-control" id="announcementInput" rows="4" placeholder="请输入新的群公告内容..."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-danger" id="btnDeleteAnnouncement">删除公告</button>
+                    <button type="button" class="btn btn-primary" id="btnSaveAnnouncement">发布</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 个人信息模态框 -->
+    <div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">个人信息</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div class="mb-3 position-relative d-inline-block">
+                        <img src="" id="profileAvatar" class="rounded-circle" width="100" height="100" style="object-fit: cover; cursor: pointer;" title="点击更换头像 (随机)">
+                        <i class="fas fa-camera position-absolute bottom-0 end-0 bg-white p-1 rounded-circle text-muted" id="btnUploadAvatar" style="cursor: pointer;" title="上传本地图片"></i>
+                        <input type="file" id="avatarUploadInput" accept="image/*" class="d-none">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small">用户编码 (User Code)</label>
+                        <h4 id="profileUserCode" class="fw-bold text-primary"></h4>
+                    </div>
+                    <div class="mb-3">
+                        <label for="profileNickname" class="form-label">昵称</label>
+                        <input type="text" class="form-control text-center" id="profileNickname">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="btnSaveProfile">保存修改</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 查找好友模态框 -->
+    <div class="modal fade" id="friendSearchModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">查找/添加好友</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control" id="searchUserCode" placeholder="输入 6 位数字编码">
+                        <button class="btn btn-outline-primary" type="button" id="btnSearchUser">查找</button>
+                    </div>
+                    
+                    <!-- 查找结果 -->
+                    <div id="searchResult" class="d-none text-center border p-3 rounded bg-light">
+                        <img src="" id="searchResultAvatar" class="rounded-circle mb-2" width="60" height="60">
+                        <h5 id="searchResultNickname" class="mb-1"></h5>
+                        <p class="text-muted small mb-3">ID: <span id="searchResultCode"></span></p>
+                        <button class="btn btn-success btn-sm" id="btnAddFriendAction"><i class="fas fa-user-plus"></i> 添加好友</button>
+                    </div>
+                    <div id="searchError" class="d-none text-center text-danger mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 发起群聊/添加 模态框 -->
+    <div class="modal fade" id="createAddModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">发起 / 添加</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs mb-3" id="createAddTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="create-group-tab" data-bs-toggle="tab" data-bs-target="#create-group-panel" type="button" role="tab">创建群聊</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="add-join-tab" data-bs-toggle="tab" data-bs-target="#add-join-panel" type="button" role="tab">添加好友/群</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content" id="createAddTabContent">
+                        <!-- 创建群聊面板 -->
+                        <div class="tab-pane fade show active" id="create-group-panel" role="tabpanel">
+                            <div class="mb-3">
+                                <label for="newGroupName" class="form-label">群聊名称</label>
+                                <input type="text" class="form-control" id="newGroupName" placeholder="给群取个好听的名字">
+                            </div>
+                            <button class="btn btn-primary w-100" id="btnDoCreateGroup">立即创建</button>
+                        </div>
+                        
+                        <!-- 添加好友/群面板 -->
+                        <div class="tab-pane fade" id="add-join-panel" role="tabpanel">
+                            <div class="input-group mb-3">
+                                <input type="text" class="form-control" id="searchCodeInput" placeholder="输入用户号或群号(6位数字)">
+                                <button class="btn btn-outline-secondary" type="button" id="btnDoSearch">搜索</button>
+                            </div>
+                            <!-- 搜索结果 -->
+                            <div id="searchResultArea" class="text-center mt-3 d-none">
+                                <!-- 动态内容 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+        <!-- 群信息模态框 -->
+    <div class="modal fade" id="groupInfoModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">群聊信息</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <h4 id="groupInfoName" class="mb-2"></h4>
+                    <div class="mb-3">
+                        <span class="badge bg-primary fs-6">群号: <span id="groupInfoCode"></span></span>
+                    </div>
+                    <div class="text-muted small mb-3">创建于: <span id="groupInfoDate"></span></div>
+                    <div class="alert alert-light border text-start">
+                        <strong>群公告:</strong><br>
+                        <span id="groupInfoAnnouncement"></span>
+                    </div>
+                    <div class="text-start mt-3">
+                        <h6 class="d-flex justify-content-between align-items-center" style="cursor: pointer;" id="toggleGroupMembers">
+                            <span>群成员 (<span id="groupInfoMemberCount">0</span>)</span>
+                            <i class="fas fa-chevron-down" id="iconMemberToggle"></i>
+                        </h6>
+                        <div id="groupMembersList" class="d-none mt-2 border-top" style="max-height: 200px; overflow-y: auto;">
+                            <!-- Dynamic content -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='vendor/jquery/jquery-3.5.1.min.js') }}"></script>
+    <!-- 引入 Bootstrap 5 JS (必须在自定义脚本之前) -->
+    <script src="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.1/js/bootstrap.bundle.min.js"></script>
 <script>
     const nickname = "{{ nickname }}";
     let ws;
     
+    // --- 新增功能逻辑 ---
+    $(document).ready(function() {
+        const profileModal = new bootstrap.Modal(document.getElementById('profileModal'));
+        const friendSearchModal = new bootstrap.Modal(document.getElementById('friendSearchModal'));
+        const groupInfoModal = new bootstrap.Modal(document.getElementById('groupInfoModal'));
+
+        // 4. 群信息相关
+        $('#btnGroupInfo').click(function() {
+            // 目前 UI 主要是公共聊天室，我们假设获取当前激活的聊天室信息
+            // 暂时硬编码逻辑：如果当前是"公共聊天室"，我们去获取它的信息
+            // 实际项目中应该根据当前激活的 chat-item 的 data-id 来获取
+            
+            // 尝试获取当前激活的聊天项
+            // const activeItem = $('.chat-item.active');
+            // const roomId = activeItem.data('room-id'); 
+            
+            // 由于前端列表暂时是硬编码的，且公共聊天室默认 ID 可能是 1 (init_db.py 创建的第一个)
+            // 我们先尝试获取 ID=1 的房间信息，如果失败则提示
+            // 或者我们可以通过搜索 "公共聊天室" (name) 或者 code (100000) 来定位
+            // 但 API 是 /api/room/<id>
+            
+            // 临时方案：默认 ID=1 (公共聊天室)
+            // 为了更稳健，我们可以先调用 search 接口获取 ID? 不，直接试 ID=1
+            const currentRoomId = 1; 
+
+            $.get('/api/room/' + currentRoomId, function(res) {
+                if(res.success) {
+                    $('#groupInfoName').text(res.data.name);
+                    $('#groupInfoCode').text(res.data.code);
+                    $('#groupInfoDate').text(res.data.created_at);
+                    $('#groupInfoAnnouncement').text(res.data.announcement || '暂无公告');
+                    $('#groupInfoMemberCount').text(res.data.member_count);
+                    
+                    // Store room ID for members fetching
+                    $('#groupInfoModal').data('room-id', currentRoomId);
+                    
+                    // Reset members list state
+                    $('#groupMembersList').addClass('d-none').empty();
+                    $('#iconMemberToggle').removeClass('fa-chevron-up').addClass('fa-chevron-down');
+                    
+                    groupInfoModal.show();
+                } else {
+                    // 如果 ID=1 不存在(可能被删了)，提示无法获取
+                    alert('无法获取群信息: ' + res.message);
+                }
+            });
+        });
+
+        // Toggle Members List
+        $('#toggleGroupMembers').click(function() {
+            const listArea = $('#groupMembersList');
+            const icon = $('#iconMemberToggle');
+            
+            if (listArea.hasClass('d-none')) {
+                // Show list
+                listArea.removeClass('d-none');
+                icon.removeClass('fa-chevron-down').addClass('fa-chevron-up');
+                
+                listArea.html('<div class="text-center py-2"><i class="fas fa-spinner fa-spin"></i> 加载中...</div>');
+                
+                const currentRoomId = $('#groupInfoModal').data('room-id');
+                
+                $.get('/api/room/' + currentRoomId + '/members', function(res) {
+                    listArea.empty();
+                    if(res.success) {
+                        if(res.data.length === 0) {
+                            listArea.html('<div class="text-muted text-center py-2">暂无成员</div>');
+                        } else {
+                            const ul = $('<ul class="list-group list-group-flush"></ul>');
+                            res.data.forEach(m => {
+                                const roleBadge = m.role === 'owner' ? '<span class="badge bg-warning text-dark ms-2" style="font-size: 0.7em;">群主</span>' : '';
+                                ul.append(`
+                                    <li class="list-group-item d-flex align-items-center px-2 py-2">
+                                        <img src="${m.avatar}" class="rounded-circle me-2" width="32" height="32" style="object-fit: cover;">
+                                        <div class="text-truncate" style="max-width: 150px;">${m.nickname}</div>
+                                        ${roleBadge}
+                                    </li>
+                                `);
+                            });
+                            listArea.append(ul);
+                        }
+                    } else {
+                        listArea.html('<div class="text-danger text-center py-2">加载失败</div>');
+                    }
+                });
+                
+            } else {
+                // Hide list
+                listArea.addClass('d-none');
+                icon.removeClass('fa-chevron-up').addClass('fa-chevron-down');
+            }
+        });
+
+        // 1. 个人信息相关
+        $('#sidebarAvatar').click(function() {
+            // 获取最新个人信息
+            $.get('/api/me', function(res) {
+                if(res.success) {
+                    $('#profileAvatar').attr('src', res.data.avatar);
+                    $('#profileUserCode').text(res.data.user_code);
+                    $('#profileNickname').val(res.data.nickname);
+                    profileModal.show();
+                } else {
+                    alert('获取信息失败: ' + res.message);
+                }
+            });
+        });
+        
+        // 点击头像生成随机新头像
+        $('#profileAvatar').click(function() {
+            const randomSeed = Math.random().toString(36).substring(7);
+            const newUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${randomSeed}`;
+            $(this).attr('src', newUrl);
+        });
+
+        // 绑定相机图标点击事件 - 触发文件选择
+        $('#btnUploadAvatar').click(function(e) {
+            e.stopPropagation(); // 阻止冒泡，避免触发 profileAvatar 的点击事件(如果布局重叠的话)
+            $('#avatarUploadInput').click();
+        });
+
+        // 监听头像文件选择
+        $('#avatarUploadInput').change(function() {
+            const file = this.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                // 显示上传中状态 (可选)
+                // $('#profileAvatar').css('opacity', '0.5');
+                
+                $.ajax({
+                    url: '/upload',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        if (response.success) {
+                            // 更新头像预览
+                            $('#profileAvatar').attr('src', response.url);
+                        } else {
+                            alert('头像上传失败: ' + response.message);
+                        }
+                        // $('#profileAvatar').css('opacity', '1');
+                    },
+                    error: function() {
+                        alert('头像上传出错，请稍后重试');
+                        // $('#profileAvatar').css('opacity', '1');
+                    }
+                });
+                // 清空 input，允许重复选择同一文件
+                $(this).val('');
+            }
+        });
+        
+        // 保存个人信息
+        $('#btnSaveProfile').click(function() {
+            const newNickname = $('#profileNickname').val().trim();
+            const newAvatar = $('#profileAvatar').attr('src');
+            
+            if(!newNickname) {
+                alert('昵称不能为空');
+                return;
+            }
+            
+            $.ajax({
+                url: '/api/me',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    nickname: newNickname,
+                    avatar: newAvatar
+                }),
+                success: function(res) {
+                    if(res.success) {
+                        alert('保存成功');
+                        profileModal.hide();
+                        // 刷新页面以更新显示
+                        location.reload();
+                    } else {
+                        alert('保存失败: ' + res.message);
+                    }
+                }
+            });
+        });
+        
+        // 2. 查找好友相关
+        $('#navAddFriend').click(function() {
+            $('#searchUserCode').val('');
+            $('#searchResult').addClass('d-none');
+            $('#searchError').addClass('d-none');
+            friendSearchModal.show();
+        });
+        
+        $('#btnSearchUser').click(function() {
+            const code = $('#searchUserCode').val().trim();
+            if(!code) return;
+            
+            $.get('/api/user/search', { code: code }, function(res) {
+                if(res.success) {
+                    $('#searchError').addClass('d-none');
+                    $('#searchResult').removeClass('d-none');
+                    $('#searchResultAvatar').attr('src', res.data.avatar);
+                    $('#searchResultNickname').text(res.data.nickname);
+                    $('#searchResultCode').text(res.data.user_code);
+                    $('#btnAddFriendAction').data('code', res.data.user_code);
+                } else {
+                    $('#searchResult').addClass('d-none');
+                    $('#searchError').text(res.message).removeClass('d-none');
+                }
+            });
+        });
+        
+        $('#btnAddFriendAction').click(function() {
+            const code = $(this).data('code');
+            $.ajax({
+                url: '/api/friend/request',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ user_code: code }),
+                success: function(res) {
+                    alert(res.message);
+                    if(res.success) {
+                        friendSearchModal.hide();
+                    }
+                }
+            });
+        });
+    });
+    // --- 结束新增功能逻辑 ---
+
     // Emoji 列表
     const emojis = [
         '😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊','😋','😎','😍','😘','🥰','😗',
@@ -926,6 +1352,49 @@
             $('#gifPanel').toggleClass('active');
         });
 
+        // 公告相关逻辑
+        const announcementModal = new bootstrap.Modal(document.getElementById('announcementModal'));
+
+        $('#btnAnnouncement').click(function() {
+            const currentText = $('#announcementText').text();
+            // 去掉开头的 "[时间] " 格式
+            const cleanText = currentText.replace(/^\[.*?\]\s*/, '');
+            
+            if (cleanText === "暂无公告") {
+                $('#announcementInput').val('');
+            } else {
+                $('#announcementInput').val(cleanText);
+            }
+            announcementModal.show();
+        });
+
+        $('#btnSaveAnnouncement').click(function() {
+            const content = $('#announcementInput').val().trim();
+            if (content) {
+                ws.send(JSON.stringify({
+                    type: 'update_announcement',
+                    content: content
+                }));
+                announcementModal.hide();
+            } else {
+                alert("请输入公告内容，或点击删除公告");
+            }
+        });
+
+        $('#btnDeleteAnnouncement').click(function() {
+            if (confirm("确定要删除当前群公告吗？")) {
+                ws.send(JSON.stringify({
+                    type: 'update_announcement',
+                    content: '' // 发送空字符串表示删除
+                }));
+                announcementModal.hide();
+            }
+        });
+
+        $('#editAnnouncement').click(function() {
+            $('#btnAnnouncement').click();
+        });
+
         // 绑定图片上传事件
         $('#btnImage').click(function(e) {
             e.stopPropagation();
@@ -956,6 +1425,40 @@
                     }
                 });
                 // 清空 input，允许重复选择同一文件
+                $(this).val('');
+            }
+        });
+
+        // 绑定文件上传事件
+        $('#btnFile').click(function(e) {
+            e.stopPropagation();
+            $('#fileInput').click();
+        });
+
+        $('#fileInput').change(function() {
+            const file = this.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                $.ajax({
+                    url: '/upload',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        if (response.success) {
+                            sendFile(response.url, response.filename);
+                        } else {
+                            alert('上传失败: ' + response.message);
+                        }
+                    },
+                    error: function() {
+                        alert('上传出错，请稍后重试');
+                    }
+                });
+                // 清空 input
                 $(this).val('');
             }
         });
@@ -991,7 +1494,124 @@
         $('#closeUserList').click(function() {
             $('#userPanel').removeClass('active');
         });
+
+        // 3. 发起群聊/添加相关
+        const createAddModal = new bootstrap.Modal(document.getElementById('createAddModal'));
+        
+        $('.add-btn').click(function() {
+            $('#newGroupName').val('');
+            $('#searchCodeInput').val('');
+            $('#searchResultArea').addClass('d-none');
+            createAddModal.show();
+        });
+        
+        // 创建群聊
+        $('#btnDoCreateGroup').click(function() {
+            const name = $('#newGroupName').val().trim();
+            if (!name) {
+                alert('请输入群聊名称');
+                return;
+            }
+            
+            $.ajax({
+                url: '/api/group/create',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({name: name}),
+                success: function(res) {
+                    if (res.success) {
+                        alert('群聊创建成功！群号：' + res.data.code);
+                        createAddModal.hide();
+                        // 可以在这里添加代码将新群聊添加到列表
+                    } else {
+                        alert(res.message);
+                    }
+                }
+            });
+        });
+        
+        // 搜索 用户/群
+        $('#btnDoSearch').click(function() {
+            const code = $('#searchCodeInput').val().trim();
+            if (!code) return;
+            
+            $.ajax({
+                url: '/api/search_add',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({code: code}),
+                success: function(res) {
+                    const resultArea = $('#searchResultArea');
+                    resultArea.removeClass('d-none');
+                    
+                    if (res.success) {
+                        let html = '';
+                        if (res.type === 'user') {
+                            html = `
+                                <img src="${res.data.avatar}" class="rounded-circle mb-2" width="60" height="60">
+                                <h5>${res.data.nickname}</h5>
+                                <p class="text-muted small">用户号: ${res.data.user_code}</p>
+                            `;
+                            if (res.data.status === 'accepted') {
+                                html += '<button class="btn btn-secondary disabled">已是好友</button>';
+                            } else if (res.data.status === 'pending') {
+                                html += '<button class="btn btn-secondary disabled">请求已发送</button>';
+                            } else {
+                                html += `<button class="btn btn-primary" onclick="window.addFriend('${res.data.user_code}')">加为好友</button>`;
+                            }
+                        } else {
+                            html = `
+                                <div class="rounded-circle mb-2 mx-auto d-flex align-items-center justify-content-center bg-light" style="width:60px;height:60px;font-size:24px">
+                                    <i class="fas fa-users text-secondary"></i>
+                                </div>
+                                <h5>${res.data.name}</h5>
+                                <p class="text-muted small">群号: ${res.data.code}</p>
+                            `;
+                            if (res.data.is_member) {
+                                html += '<button class="btn btn-secondary disabled">已加入</button>';
+                            } else {
+                                html += `<button class="btn btn-primary" onclick="window.joinGroup(${res.data.id})">加入群聊</button>`;
+                            }
+                        }
+                        resultArea.html(html);
+                    } else {
+                        resultArea.html(`<p class="text-danger">${res.message}</p>`);
+                    }
+                }
+            });
+        });
     });
+
+    // 全局函数供 onclick 调用
+    window.addFriend = function(code) {
+        $.ajax({
+            url: '/api/friend/request',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ user_code: code }),
+            success: function(res) {
+                alert(res.message);
+                if(res.success) {
+                    $('#createAddModal').modal('hide');
+                }
+            }
+        });
+    };
+
+    window.joinGroup = function(roomId) {
+        $.ajax({
+            url: '/api/group/join',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ room_id: roomId }),
+            success: function(res) {
+                alert(res.message);
+                if(res.success) {
+                    $('#createAddModal').modal('hide');
+                }
+            }
+        });
+    };
 
     function initWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -1013,6 +1633,9 @@
                 const data = JSON.parse(event.data);
                 if (data.type === 'user_list') {
                     updateUserList(data.users);
+                } else if (data.type === 'announcement') {
+                    // 更新公告
+                    updateAnnouncement(data);
                 } else {
                     appendMessage(data);
                 }
@@ -1026,6 +1649,19 @@
             // 可以添加重连逻辑
             setTimeout(initWebSocket, 3000);
         };
+    }
+
+    function updateAnnouncement(data) {
+        const bar = $('#announcementBar');
+        const text = $('#announcementText');
+        
+        if (data.content) {
+            bar.slideDown();
+            text.text(`[${data.time}] ${data.content}`);
+            text.attr('title', `发布时间: ${data.time}\n内容: ${data.content}`);
+        } else {
+            bar.slideUp();
+        }
     }
 
     function sendMessage() {
@@ -1060,6 +1696,19 @@
         }));
     }
 
+    function sendFile(url, filename) {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('zh-CN', {hour: 'numeric', minute:'2-digit'});
+
+        ws.send(JSON.stringify({
+            type: 'file',
+            user: nickname,
+            content: url,
+            filename: filename,
+            time: timeString
+        }));
+    }
+
     function appendMessage(data) {
         const container = $('#messageContainer');
         const isMine = data.user === nickname;
@@ -1070,7 +1719,7 @@
         
         let html = '';
         // 兼容旧的 'chat' 类型和新的 'message' 类型
-        if (data.type === 'message' || data.type === 'chat' || data.type === 'image') {
+        if (data.type === 'message' || data.type === 'chat' || data.type === 'image' || data.type === 'file') {
             const avatarSeed = data.user;
             const avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(avatarSeed)}`;
 
@@ -1078,6 +1727,17 @@
             let contentHtml = '';
             if (data.type === 'image') {
                 contentHtml = `<img src="${data.content}" class="msg-image" onclick="window.open(this.src)">`;
+            } else if (data.type === 'file') {
+                const filename = data.filename || data.content.split('/').pop();
+                contentHtml = `
+                    <div class="msg-file">
+                        <i class="fas fa-file-alt fa-2x me-2"></i>
+                        <div class="file-info">
+                            <div class="file-name">${filename}</div>
+                            <a href="${data.content}" target="_blank" class="file-download">点击下载</a>
+                        </div>
+                    </div>
+                `;
             } else {
                 // 转义HTML防止XSS，处理换行
                 // 先创建文本节点防止XSS

@@ -6,6 +6,9 @@ class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True, nullable=False)
+    nickname = db.Column(db.String(64)) # 显示名称
+    user_code = db.Column(db.String(10), unique=True, nullable=False) # 数字编码
+    avatar = db.Column(db.String(256)) # 头像URL
     password_hash = db.Column(db.String(128))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -19,14 +22,45 @@ class User(db.Model):
         return {
             'id': self.id,
             'username': self.username,
+            'nickname': self.nickname or self.username,
+            'user_code': self.user_code,
+            'avatar': self.avatar or f'https://api.dicebear.com/7.x/avataaars/svg?seed={self.username}',
             'created_at': self.created_at.isoformat()
         }
+
+class Friendship(db.Model):
+    __tablename__ = 'friendships'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    friend_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    status = db.Column(db.String(20), default='pending') # pending, accepted, rejected
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', foreign_keys=[user_id], backref='friend_requests_sent')
+    friend = db.relationship('User', foreign_keys=[friend_id], backref='friend_requests_received')
 
 class Room(db.Model):
     __tablename__ = 'rooms'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(64), unique=True, nullable=False)
+    name = db.Column(db.String(64), nullable=False) # Remove unique=True to allow same name groups
+    code = db.Column(db.String(10), unique=True, nullable=True) # Room code for searching
+    owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    announcement = db.Column(db.Text, nullable=True)
+    announcement_time = db.Column(db.DateTime, nullable=True)
+
+    owner = db.relationship('User', foreign_keys=[owner_id])
+
+class RoomMember(db.Model):
+    __tablename__ = 'room_members'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    room_id = db.Column(db.Integer, db.ForeignKey('rooms.id'), nullable=False)
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('room_memberships', lazy='dynamic'))
+    room = db.relationship('Room', backref=db.backref('members', lazy='dynamic'))
+
 
 class Message(db.Model):
     __tablename__ = 'messages'

@@ -238,7 +238,7 @@
 
         <form id="authForm" method="POST" action="/">
             <div class="input-group-custom">
-                <input type="text" class="form-control" id="nickname" name="nickname" placeholder="请输入您的昵称" required>
+                <input type="text" class="form-control" id="nickname" name="nickname" placeholder="请输入用户名或用户编码" required>
                 <div class="icon-wrapper"><i class="fas fa-user"></i></div>
             </div>
             
@@ -290,7 +290,8 @@
                 $('#submitBtn').html('立即注册 <i class="fas fa-user-plus ms-2"></i>');
                 $('#serverGroup').slideUp();
                 $('.app-brand h1').text('趣唠 - 注册');
-                $('#authForm').attr('action', '/register'); // 虽然注册用AJAX，但修改action是个好习惯
+                $('#authForm').attr('action', '/register');
+                $('#nickname').attr('placeholder', '请输入用户名 (登录账号)');
             } else {
                 $('#switchText').text('还没有账号？');
                 $(this).text('立即注册');
@@ -298,6 +299,7 @@
                 $('#serverGroup').slideDown();
                 $('.app-brand h1').text('趣唠 TeamChat');
                 $('#authForm').attr('action', '/');
+                $('#nickname').attr('placeholder', '请输入用户名或用户编码');
             }
         });
 
@@ -341,9 +343,9 @@
             }
         });
 
-        {% if error %}
+        '{% if error %}'
         $('#alertArea').text("{{ error }}").show();
-        {% endif %}
+        '{% endif %}'
     });
 </script>
 
