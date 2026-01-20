@@ -48,6 +48,39 @@ def register():
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})
 
+import os
+from werkzeug.utils import secure_filename
+from flask import current_app
+
+@frontend_bp.route('/upload', methods=['POST'])
+def upload_file():
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': '请先登录'})
+        
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': '没有文件部分'})
+        
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'success': False, 'message': '未选择文件'})
+        
+    if file:
+        filename = secure_filename(file.filename)
+        # 加上时间戳避免重名
+        filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
+        
+        upload_folder = current_app.config['UPLOAD_FOLDER']
+        if not os.path.exists(upload_folder):
+            os.makedirs(upload_folder)
+            
+        file.save(os.path.join(upload_folder, filename))
+        
+        # 返回相对路径
+        url = url_for('static', filename=f'uploads/{filename}')
+        return jsonify({'success': True, 'url': url})
+        
+    return jsonify({'success': False, 'message': '上传失败'})
+
 @frontend_bp.route('/chat')
 def chat():
     if 'user_id' not in session:

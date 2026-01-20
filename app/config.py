@@ -7,3 +7,7 @@ class AppConfig:
     DB_PATH = os.path.join(BASE_DIR, 'database', 'quliao.db')
     SQLALCHEMY_DATABASE_URI = f'sqlite:///{DB_PATH}'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # 上传配置
+    UPLOAD_FOLDER = os.path.join(BASE_DIR, 'app', 'static', 'uploads')
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max limit

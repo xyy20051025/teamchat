@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>趣唠 - 登录</title>
-    <!-- 引入 Bootstrap 5 -->
+    <!-- 引入 Bootstrap 5 (Local version is v2.3.2, incompatible with design, using CDN) -->
     <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.1/css/bootstrap.min.css" rel="stylesheet">
-    <!-- 引入 FontAwesome -->
-    <link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    <!-- 引入 FontAwesome (Local) -->
+    <link href="{{ url_for('static', filename='vendor/fontawesome-free-6.4.0-web/css/all.min.css') }}" rel="stylesheet">
     <style>
         :root {
             --primary-color: #ff7eb3;
@@ -271,7 +271,7 @@
     </div>
 </div>
 
-<script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/jquery/jquery-3.5.1.min.js') }}"></script>
 <script>
     $(document).ready(function() {
         // 自动聚焦
