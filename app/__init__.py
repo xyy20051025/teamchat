@@ -7,6 +7,7 @@ from app.config import AppConfig
 from app.extensions import sock, db
 from app.blueprints.backend import backend_bp
 from app.blueprints.frontend import frontend_bp
+from app.blueprints.game import game_bp
 
 
 def create_app():
@@ -29,5 +30,6 @@ def create_app():
 
     app.register_blueprint(backend_bp, url_prefix="/admin")
     app.register_blueprint(frontend_bp, url_prefix="/")
+    app.register_blueprint(game_bp, url_prefix="/game")
 
     return app

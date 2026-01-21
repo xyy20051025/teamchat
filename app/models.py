@@ -226,3 +226,22 @@ class Menu(db.Model):
             'url': self.url,
             'order': self.order
         }
+
+class SnakeGameMatch(db.Model):
+    __tablename__ = 'snake_game_matches'
+    id = db.Column(db.Integer, primary_key=True)
+    room_code = db.Column(db.String(10), unique=True, nullable=False)
+    match_type = db.Column(db.String(10), default='1v1') # 1v1, 3v3, pve
+    status = db.Column(db.String(20), default='waiting') # waiting, playing, finished
+    owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class SnakeGameScore(db.Model):
+    __tablename__ = 'snake_game_scores'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    score = db.Column(db.Integer, default=0)
+    match_type = db.Column(db.String(10))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref='game_scores')

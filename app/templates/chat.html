@@ -781,7 +781,7 @@
                 <span class="visually-hidden">New alerts</span>
             </span>
         </div>
-        <div class="nav-item" title="游戏大厅" id="navGame">
+        <div class="nav-item" title="游戏大厅" id="navGame" onclick="window.open('/game/snake', '_blank')">
             <i class="fas fa-gamepad"></i>
         </div>
         <div class="nav-item" title="文件">
@@ -1187,7 +1187,8 @@
     <!-- 引入 Bootstrap 5 JS (必须在自定义脚本之前) -->
     <script src="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.1/js/bootstrap.bundle.min.js"></script>
 <script>
-    const nickname = "{{ nickname }}";
+    const nickname = "{{ user.nickname or user.username }}";
+    const userId = Number('{{ user.id }}');
     let ws;
     let currentRoomId = 1; // Default to public room or handle initialization
 
@@ -1377,45 +1378,38 @@
 
         // 4. 群信息相关
         $('#btnGroupInfo').click(function() {
-            // 目前 UI 主要是公共聊天室，我们假设获取当前激活的聊天室信息
-            // 暂时硬编码逻辑：如果当前是"公共聊天室"，我们去获取它的信息
-            // 实际项目中应该根据当前激活的 chat-item 的 data-id 来获取
+            if (!currentRoomId) return;
             
-            // 尝试获取当前激活的聊天项
-            // const activeItem = $('.chat-item.active');
-            // const roomId = activeItem.data('room-id'); 
-            
-            // 由于前端列表暂时是硬编码的，且公共聊天室默认 ID 可能是 1 (init_db.py 创建的第一个)
-            // 我们先尝试获取 ID=1 的房间信息，如果失败则提示
-            // 或者我们可以通过搜索 "公共聊天室" (name) 或者 code (100000) 来定位
-            // 但 API 是 /api/room/<id>
-            
-            // 临时方案：默认 ID=1 (公共聊天室)
-            // 为了更稳健，我们可以先调用 search 接口获取 ID? 不，直接试 ID=1
-            const currentRoomId = 1; 
-
-            $.get('/api/room/' + currentRoomId, function(res) {
-                if(res.success) {
+            $.get(`/api/room/${currentRoomId}/info`, function(res) {
+                if (res.success) {
                     $('#groupInfoName').text(res.data.name);
                     $('#groupInfoCode').text(res.data.code);
                     $('#groupInfoDate').text(res.data.created_at);
                     $('#groupInfoAnnouncement').text(res.data.announcement || '暂无公告');
-                    $('#groupInfoMemberCount').text(res.data.member_count);
+                    $('#groupInfoMemberCount').text(res.data.members.length);
                     
-                    // Store room ID for members fetching
-                    $('#groupInfoModal').data('room-id', currentRoomId);
-                    
-                    // Reset members list state
-                    $('#groupMembersList').addClass('d-none').empty();
-                    $('#iconMemberToggle').removeClass('fa-chevron-up').addClass('fa-chevron-down');
+                    // Render members
+                    const list = $('#groupMembersList');
+                    list.empty();
+                    res.data.members.forEach(m => {
+                        const roleBadge = m.role === 'owner' ? '<span class="badge bg-warning text-dark ms-2">群主</span>' : '';
+                        list.append(`
+                            <div class="d-flex align-items-center p-2 border-bottom">
+                                <img src="${m.avatar}" class="rounded-circle me-2" width="30" height="30">
+                                <span>${m.nickname}</span>
+                                ${roleBadge}
+                            </div>
+                        `);
+                    });
                     
                     groupInfoModal.show();
                 } else {
-                    // 如果 ID=1 不存在(可能被删了)，提示无法获取
-                    alert('无法获取群信息: ' + res.message);
+                    showToast('错误', res.message);
                 }
             });
         });
+
+
 
         // Toggle Members List
         $('#toggleGroupMembers').click(function() {
@@ -1477,12 +1471,9 @@
             });
         });
         
-        // 点击头像生成随机新头像 (网络限制，暂时禁用随机生成，使用默认头像)
+        // 点击头像图片也可以触发上传 (类似相机按钮)
         $('#profileAvatar').click(function() {
-            // const randomSeed = Math.random().toString(36).substring(7);
-            // const newUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${randomSeed}`;
-            // $(this).attr('src', newUrl);
-            console.log('Random avatar generation disabled due to network restrictions.');
+            $('#avatarUploadInput').click();
         });
 
         // 绑定相机图标点击事件 - 触发文件选择
@@ -1496,13 +1487,13 @@
             const file = this.files[0];
             if (file) {
                 const formData = new FormData();
-                formData.append('file', file);
+                formData.append('avatar', file);
                 
                 // 显示上传中状态 (可选)
                 // $('#profileAvatar').css('opacity', '0.5');
                 
                 $.ajax({
-                    url: '/upload',
+                    url: '/api/user/avatar',
                     type: 'POST',
                     data: formData,
                     processData: false,
@@ -1510,14 +1501,16 @@
                     success: function(response) {
                         if (response.success) {
                             // 更新头像预览
-                            $('#profileAvatar').attr('src', response.url);
+                            $('#profileAvatar').attr('src', response.avatar_url);
+                            $('#sidebarAvatar').attr('src', response.avatar_url);
+                            showToast('成功', '头像更新成功');
                         } else {
-                            alert('头像上传失败: ' + response.message);
+                            showToast('错误', response.message);
                         }
                         // $('#profileAvatar').css('opacity', '1');
                     },
                     error: function() {
-                        alert('头像上传出错，请稍后重试');
+                        showToast('错误', '头像上传出错，请稍后重试');
                         // $('#profileAvatar').css('opacity', '1');
                     }
                 });
@@ -1919,24 +1912,7 @@
         });
     };
 
-    window.joinGroup = function(roomId) {
-        $.ajax({
-            url: '/api/group/join',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({ room_id: roomId }),
-            success: function(res) {
-                if(res.success) {
-                    showToast('成功', res.message);
-                    $('#createAddModal').modal('hide');
-                    // Refresh list and switch to the joined group
-                    switchChatRoom(roomId);
-                } else {
-                    alert(res.message);
-                }
-            }
-        });
-    };
+
 
     function initWebSocket() {
         // Use server configured in session if available, otherwise default to current host
@@ -1959,8 +1935,16 @@
             ws.send(JSON.stringify({
                 type: 'join',
                 user: nickname,
+                user_id: userId,
                 content: 'Joined the chat'
             }));
+            
+            // 心跳检测
+            setInterval(() => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({type: 'ping'}));
+                }
+            }, 30000);
         };
 
         ws.onmessage = function(event) {
@@ -2049,8 +2033,10 @@
             bar.slideDown();
             text.text(`[${data.time}] ${data.content}`);
             text.attr('title', `发布时间: ${data.time}\n内容: ${data.content}`);
+            $('#groupInfoAnnouncement').text(data.content);
         } else {
             bar.slideUp();
+            $('#groupInfoAnnouncement').text('暂无公告');
         }
     }
 
@@ -2220,12 +2206,19 @@
         // $('.header-info h5').text(`公共聊天室 (${users.length})`);
 
         users.forEach(user => {
-            // 使用 DiceBear 生成对应头像
-            const avatarUrl = '/static/images/default_avatar.svg';
+            // Check if user is object or string (backward compatibility)
+            let name = user;
+            let avatarUrl = '/static/images/default_avatar.svg';
+            
+            if (typeof user === 'object') {
+                name = user.nickname || user.username;
+                avatarUrl = user.avatar || '/static/images/default_avatar.svg';
+            }
+            
             const item = `
                 <li class="user-item">
-                    <img src="${avatarUrl}" class="user-item-avatar" alt="${user}">
-                    <span class="user-item-name">${user}</span>
+                    <img src="${avatarUrl}" class="user-item-avatar" alt="${name}">
+                    <span class="user-item-name">${name}</span>
                     <span class="user-status-indicator" title="在线"></span>
                 </li>
             `;
@@ -2235,7 +2228,7 @@
 
     function logout() {
         if (confirm('确定要退出登录吗？')) {
-            window.location.href = '/';
+            window.location.href = '/logout';
         }
     }
 
@@ -2326,7 +2319,7 @@
         });
     }
 
-    function loadGroups() {
+    window.loadGroups = function() {
         $('#groupsList').html('<div class="text-center text-muted mt-3">加载中...</div>');
         $.get('/api/groups', function(res) {
             if(res.success) {
@@ -2567,6 +2560,82 @@
             }
         });
     }
+
+    function loadGroups() {
+        $.get('/api/rooms', function(res) {
+            if(res.success) {
+                const list = $('#groupsList');
+                list.empty();
+                
+                const groups = res.data.filter(r => r.type === 'group');
+                
+                if (groups.length === 0) {
+                     list.html('<div class="text-center text-muted mt-3">暂无群聊</div>');
+                     return;
+                }
+
+                groups.forEach(group => {
+                    const item = `
+                        <div class="list-group-item d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center">
+                                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold">${group.name}</div>
+                                    <small class="text-muted">群号: ${group.code}</small>
+                                </div>
+                            </div>
+                            <button class="btn btn-sm btn-primary" onclick="switchChatRoom(${group.id}); bootstrap.Modal.getInstance(document.getElementById('friendsModal')).hide();">进入</button>
+                        </div>
+                    `;
+                    list.append(item);
+                });
+            } else {
+                 $('#groupsList').html('<div class="text-center text-danger mt-3">加载失败</div>');
+            }
+        });
+    }
+
+    // --- Helper Functions for Search/Add ---
+    window.addFriend = function(userCode) {
+        $.ajax({
+            url: '/api/friend/request',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({user_code: userCode}),
+            success: function(res) {
+                if (res.success) {
+                    showToast('提示', res.message);
+                    // Refresh button state in search result
+                    $('#btnDoSearch').click(); 
+                } else {
+                    showToast('错误', res.message);
+                }
+            }
+        });
+    };
+
+    window.joinGroup = function(roomId) {
+         $.ajax({
+            url: '/api/group/join',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({room_id: roomId}),
+            success: function(res) {
+                if (res.success) {
+                    showToast('提示', res.message);
+                    $('#createAddModal').modal('hide');
+                    // Reload groups list
+                    loadGroups();
+                    // Switch to new group
+                    switchChatRoom(res.room_id);
+                } else {
+                    showToast('错误', res.message);
+                }
+            }
+        });
+    };
 
     // Bind events
     $(document).ready(function() {

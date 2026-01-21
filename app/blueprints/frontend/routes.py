@@ -3,6 +3,7 @@ from app.extensions import db, sock
 from app.models import User, Room, RoomMember, Friendship, Message, AIModel, ServerConfig
 from sqlalchemy import or_
 from datetime import datetime
+from werkzeug.utils import secure_filename
 import json
 import os
 import threading
@@ -346,6 +347,45 @@ def join_group():
     
     return jsonify({'success': True, 'message': '加入成功', 'room_id': room.id})
 
+@frontend_bp.route('/api/user/avatar', methods=['POST'])
+def update_avatar():
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+        
+    user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({'success': False, 'message': 'User not found'}), 404
+        
+    if 'avatar' not in request.files:
+        return jsonify({'success': False, 'message': 'No file part'}), 400
+        
+    file = request.files['avatar']
+    if file.filename == '':
+        return jsonify({'success': False, 'message': 'No selected file'}), 400
+        
+    if file:
+        filename = secure_filename(file.filename)
+        # Unique filename
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        new_filename = f"{timestamp}_{filename}"
+        
+        # Ensure directory exists
+        upload_folder = os.path.join(current_app.static_folder, 'uploads')
+        if not os.path.exists(upload_folder):
+            os.makedirs(upload_folder)
+            
+        file_path = os.path.join(upload_folder, new_filename)
+        file.save(file_path)
+        
+        # Update user avatar URL
+        avatar_url = f"/static/uploads/{new_filename}"
+        user.avatar = avatar_url
+        db.session.commit()
+        
+        return jsonify({'success': True, 'avatar_url': avatar_url})
+        
+    return jsonify({'success': False, 'message': 'Upload failed'}), 500
+
 @frontend_bp.route('/api/chat/ai_stream')
 def stream_ai_chat():
     if 'user_id' not in session:
@@ -497,8 +537,15 @@ def websocket(ws):
                                 broadcast_room_message(room_id, msg_data)
                                 
                                 # Check for AI command
-                                if msg_type == 'message' and msg_data.get('content', '').startswith('@趣冰'):
-                                    query = msg_data.get('content', '').replace('@趣冰', '', 1).strip()
+                                content = msg_data.get('content', '')
+                                trigger = None
+                                if content.startswith('@趣冰'):
+                                    trigger = '@趣冰'
+                                elif content.startswith('@趣聊小助手'):
+                                    trigger = '@趣聊小助手'
+                                    
+                                if msg_type == 'message' and trigger:
+                                    query = content.replace(trigger, '', 1).strip()
                                     if query:
                                         # Use current_app._get_current_object() to pass app context
                                         app = current_app._get_current_object()
@@ -620,8 +667,8 @@ def handle_ai_response_ws(app, query, room_id, user_nickname=None):
             broadcast_room_message(room_id, {
                 'type': 'ai_stream_start',
                 'id': msg_id,
-                'user': '趣唠AI',
-                'nickname': '趣唠AI',
+                'user': '趣聊小助手',
+                'nickname': '趣聊小助手',
                 'avatar': avatar,
                 'time': timestamp,
                 'room_id': room_id
@@ -701,8 +748,8 @@ def handle_ai_response_ws(app, query, room_id, user_nickname=None):
             print(f"AI Stream Error: {e}")
             broadcast_room_message(room_id, {
                 'type': 'message', # Fallback to normal message for error
-                'user': '趣唠AI',
-                'nickname': '趣唠AI',
+                'user': '趣聊小助手',
+                'nickname': '趣聊小助手',
                 'content': f'AI服务暂时不可用: {str(e)}',
                 'room_id': room_id,
                 'msg_type': 'ai',
